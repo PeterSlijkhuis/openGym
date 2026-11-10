@@ -237,7 +237,7 @@ const PLAN_COPY = {
 // and only the weekdays the plan asks for are reassigned; an id with no plan behind it changes
 // nothing at all. planId is deliberately required — a default invites `onClick={loadStarterPlan}`,
 // which hands the click event in as the plan and silently loads nothing.
-export function loadStarterPlan(planId, profile) {
+export function loadStarterPlan(planId, profile, days) {
   const plan = buildStarterPlan(planId, profile ? profileEquipment(profile) : undefined)
   if (!plan) return false
   update(st => {
@@ -251,7 +251,9 @@ export function loadStarterPlan(planId, profile) {
       if (have) idOf[r.id] = have.id
       else { st.routines.push(r); idOf[r.id] = r.id }
     })
-    plan.schedule.forEach(({ day, routineId }) => { st.week[day] = [idOf[routineId]] })
+    // `days` (the onboarding's weekdays) puts the routines on those days instead, in turn.
+    const on = days?.length ? days : plan.schedule.map(x => x.day)
+    on.forEach((day, i) => { st.week[day] = [idOf[plan.schedule[i % plan.schedule.length].routineId]] })
   })
   if (plan.fit) toast(t('{0} loaded, fitted to "{1}": {2} swapped, {3} dropped', PLAN_COPY[planId]().name, profile.name, plan.fit.swapped, plan.fit.dropped))
   else toast(t('{0} loaded', PLAN_COPY[planId]().name))

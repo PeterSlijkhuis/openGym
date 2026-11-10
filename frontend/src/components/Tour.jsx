@@ -28,6 +28,7 @@ import { Button } from './ui.jsx'
 import Icon from './Icon.jsx'
 import { PRESETS, presetOf, applyPreset } from '../lib/modules.js'
 import { presetCopy } from '../lib/modules-copy.js'
+import Onboarding from './Onboarding.jsx'
 import './Tour.css'
 
 // What each stop says. Literal t() calls, so check-source-strings sees every one.
@@ -615,6 +616,9 @@ function Run({ at, flow = 'tour' }) {
 export default function Tour() {
   const st = useTour()
   if (!st) return null
+  // The personalising questions (components/Onboarding.jsx): ahead of the first offer, or alone from Settings.
+  if (st.kind === 'setup') return <Onboarding onDone={closeTour} onLeave={closeTour} />
+  if (st.kind === 'offer' && !st.asked) return <Onboarding onDone={() => openTour({ kind: 'offer', asked: true })} onLeave={() => { markOffered(); closeTour() }} />
   if (st.kind === 'run') return <Run key={'run-' + (st.flow || 'tour')} at={st.at} flow={st.flow || 'tour'} />
   return <Question kind={st.kind} at={st.at} />
 }

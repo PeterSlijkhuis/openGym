@@ -185,3 +185,15 @@ p{ text-wrap:pretty }
 .cy-note{margin:12px 0 0}
 .cy-bar{display:block;height:6px;border-radius:3px;background:var(--surface-2);margin-top:6px}
 .cy-bar>span{display:block;height:100%;border-radius:3px;background:var(--pink)}
+
+/* Onboarding (components/Onboarding.jsx): the tour card, a little wider, with labelled fields. */
+.ob-card{width:min(400px,calc(100vw - 32px))}
+.ob-card .seg{margin:0 0 4px}
+.ob-field{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;font-size:var(--fs-footnote);color:var(--label-2,var(--label))}
+.ob-field select{font:inherit;font-size:var(--fs-body,16px);padding:10px 12px;border-radius:12px;border:0;background:var(--surface-3,var(--surface));color:var(--label)}
+.ob-sw{flex-direction:row;align-items:center;justify-content:space-between}
+.ob-sw small{display:block;color:var(--label-3,var(--label));margin-top:2px}
+.ob-nums{margin:12px 0}
+.ob-days{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.ob-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+.ob-rows .lrow{border-radius:12px;background:var(--surface-3,var(--surface))}

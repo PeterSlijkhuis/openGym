@@ -114,7 +114,7 @@ afterEach(async () => {
 
 describe('the first-run question', () => {
   it('asks once: the card takes focus, Skip closes it and it is never asked again', async () => {
-    await act(async () => { openTour({ kind: 'offer' }) })
+    await act(async () => { openTour({ kind: 'offer', asked: true }) })
     await render()
     expect(card().textContent).toContain('Want a 1-minute tour?')
     expect(document.activeElement).toBe(card())
@@ -125,7 +125,7 @@ describe('the first-run question', () => {
   })
   it('also asks how much app this profile wants (Settings → Modules): Everything until a tap, a tap applies it', async () => {
     useStore.setState(st => ({ S: { ...st.S, modules: undefined } }))
-    await act(async () => { openTour({ kind: 'offer' }) })
+    await act(async () => { openTour({ kind: 'offer', asked: true }) })
     await render()
     const radios = [...card().querySelectorAll('[role="radio"]')]
     expect(radios.map(r => r.querySelector('.tour-tut-t').textContent)).toEqual(['Just training', 'Training and body', 'Everything'])
@@ -147,12 +147,12 @@ describe('the first-run question', () => {
     expect(card().querySelector('[role="radiogroup"]')).toBe(null)
   })
   it('Show me starts the tour on Home, and Escape is a no as well', async () => {
-    await act(async () => { openTour({ kind: 'offer' }) })
+    await act(async () => { openTour({ kind: 'offer', asked: true }) })
     await render()
     await click(btn('Show me'))
     expect(step()).toBe('today')
     expect(where).toBe('/home')
-    await act(async () => { openTour({ kind: 'offer' }) })
+    await act(async () => { openTour({ kind: 'offer', asked: true }) })
     await settle()
     await key('Escape')
     expect(tourState()).toBe(null)
