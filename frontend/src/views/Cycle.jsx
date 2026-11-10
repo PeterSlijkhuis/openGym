@@ -12,6 +12,7 @@ import { useCycle, saveDay, savePrefs, refreshCycle } from '../components/useCyc
 import { DaySheet, CycleSettings, PhaseAsks } from '../components/CycleSheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button, Row, Section } from '../components/ui.jsx'
+import { isOn } from '../lib/modules.js'
 
 const openSheet = render => useUI.getState().openSheet(render)
 const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return null } })()
@@ -19,16 +20,34 @@ const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZon
 export default function Cycle() {
   const nav = useNavigate()
   const c = useCycle()
+  const own = isOn(useStore(s => s.S), 'cycle')
   return <div className="narrow">
     <div className="hdr">
       <button className="iconbtn" data-back="/" onClick={() => nav(-1)} aria-label="Back"><Icon name="chevronLeft" /></button>
-      <div style={{ flex: 1, marginInlineStart: 12 }}><h1>Cycle</h1><div className="sub">Private to you</div></div>
-      {c && <button className="iconbtn" onClick={() => openSheet(() => <CycleSettings />)} aria-label="Cycle settings"><Icon name="gear" /></button>}
+      <div style={{ flex: 1, marginInlineStart: 12 }}><h1>Cycle</h1><div className="sub">{own ? 'Private to you' : 'Shared with you'}</div></div>
+      {c && own && <button className="iconbtn" onClick={() => openSheet(() => <CycleSettings />)} aria-label="Cycle settings"><Icon name="gear" /></button>}
     </div>
     {c === undefined && <p className="muted">Loading…</p>}
     {c === null && <div className="card"><p className="muted">This server has no cycle tracking, or it could not be reached. <Button size="sm" variant="ghost" onClick={() => refreshCycle()}>Try again</Button></p></div>}
-    {c && <Body c={c} />}
+    {c && own && <Body c={c} />}
+    {c && !own && <Shared c={c} />}
   </div>
+}
+
+// Cycle tracking off for this account: only what friends choose to share with it.
+function Shared({ c }) {
+  const p = c.partners || []
+  return <>
+    {p.length ? <PartnerRows partners={p} /> : <div className="card"><p className="muted" style={{ margin: 0 }}>Nobody shares their cycle with you yet. They pick who can see it in their own Cycle settings.</p></div>}
+    <p className="muted small">To log your own cycle, switch on Cycle tracking in Settings, Modules.</p>
+  </>
+}
+
+function PartnerRows({ partners }) {
+  return <Section title="Shared with you">
+    {partners.map(p => <Row key={p.uid} icon="person" iconTint="var(--pink)" title={p.name}
+      subtitle={`${PHASES[p.phase].label}, day ${p.day}`} value={p.next ? `Next ${fmtDate(p.next.from)}${p.next.to !== p.next.from ? ' to ' + fmtDate(p.next.to) : ''}` : null} />)}
+  </Section>
 }
 
 function Body({ c }) {
@@ -71,10 +90,7 @@ function Body({ c }) {
 
     <Calendar days={days} fc={fc} today={today} weekStart={weekStartOf(S)} />
     <History days={days} ps={ps} st={st} />
-    {c.partners?.length > 0 && <Section title="Shared with you">
-      {c.partners.map(p => <Row key={p.uid} icon="person" iconTint="var(--pink)" title={p.name}
-        subtitle={`${PHASES[p.phase].label}, day ${p.day}`} value={p.next ? `Next ${fmtDate(p.next.from)}${p.next.to !== p.next.from ? ' to ' + fmtDate(p.next.to) : ''}` : null} />)}
-    </Section>}
+    {c.partners?.length > 0 && <PartnerRows partners={c.partners} />}
   </>
 }
 

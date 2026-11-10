@@ -7,10 +7,21 @@ import { useCycle } from './useCycle.js'
 import CardHead from './CardHead.jsx'
 import Icon from './Icon.jsx'
 
-export default function CycleHomeCard() {
+// `own`: this account tracks its own cycle (module on). Without it the card appears only when a
+// friend shares theirs, and says so.
+export default function CycleHomeCard({ own }) {
   const nav = useNavigate()
   const c = useCycle()
   if (!c) return null
+  if (!own) {
+    const p = c.partners || []
+    if (!p.length) return null
+    return <div className="card tap-host">
+      <CardHead icon="moon" tint="var(--pink)" eyebrow="Cycle" title={p.length === 1 ? `${p[0].name}: ${PHASES[p[0].phase].label}, day ${p[0].day}` : `${p.length} people share their cycle`}
+        sub={p.length === 1 && p[0].next ? `Next period expected ${fmtDate(p[0].next.from)}` : null}
+        open={{ onClick: () => nav('/cycle') }} action={<Icon name="chevronRight" className="chev" />} />
+    </div>
+  }
   const ph = phaseOn(c.days, todayISO()), next = forecast(c.days)[0]
   return <div className="card tap-host">
     <CardHead icon="moon" tint="var(--pink)" eyebrow="Cycle" title={ph ? `${PHASES[ph.phase].label}, day ${ph.day}` : 'Start tracking your cycle'}

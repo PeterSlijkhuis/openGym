@@ -222,7 +222,7 @@ export default function Home() {
     )}
 
     {on('health') && <GarminHomeCard />}
-    {on('cycle') && <CycleHomeCard />}
+    <CycleHomeCard own={on('cycle')} />
 
     {/* Today's calories, one tap from the food diary (views/Food.jsx). */}
     {on('food') && (() => {

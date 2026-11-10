@@ -353,7 +353,8 @@ function Shell() {
       {isOn(S, 'body') && <Route path="/measurements" element={<Measurements />} />}
       {isOn(S, 'food') && <Route path="/food" element={<Food />} />}
       {isOn(S, 'health') && <Route path="/garmin" element={<Garmin />} />}
-      {isOn(S, 'cycle') && <Route path="/cycle" element={<Cycle />} />}
+      {/* Always routed: with the module off it shows only what friends share with this account. */}
+      <Route path="/cycle" element={<Cycle />} />
       <Route path="/settings" element={<SettingsRoute />} />
       <Route path="/settings/:page" element={<SettingsRoute />} />
       {/* The Coach screens gate themselves on the instance config; the routes exist whenever the

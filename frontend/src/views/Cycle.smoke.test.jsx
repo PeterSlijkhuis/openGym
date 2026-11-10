@@ -14,14 +14,22 @@ globalThis.__C = {
   partners: [{ uid: 'u2', name: 'Val', level: 'period', phase: 'luteal', day: 20, next: { from: addDays(today, 5), to: addDays(today, 7) } }],
 }
 vi.mock('../components/useCycle.js', () => ({ useCycle: () => globalThis.__C, saveDay: async () => {}, savePrefs: async () => {}, wipeCycle: async () => {}, refreshCycle: () => {} }))
-vi.mock('../store/useStore.js', async orig => { const m = await orig(); return { ...m, useStore: sel => sel({ S: { workouts: [], routines: [] }, user: { id: 'u1' } }) } })
+globalThis.__S = { workouts: [], routines: [], modules: { cycle: true } }
+vi.mock('../store/useStore.js', async orig => { const m = await orig(); return { ...m, useStore: sel => sel({ S: globalThis.__S, user: { id: 'u1' } }) } })
 import Cycle from './Cycle.jsx'
 import CycleHomeCard from '../components/CycleHomeCard.jsx'
 import { DaySheet, CycleSettings } from '../components/CycleSheets.jsx'
 
 describe('cycle screens', () => {
+  it('without the module the screen and Home card show only what is shared', () => {
+    globalThis.__S = { workouts: [], routines: [], modules: { cycle: false } }
+    const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own={false} /></MemoryRouter>)
+    globalThis.__S = { workouts: [], routines: [], modules: { cycle: true } }
+    for (const s of ['Shared with you', 'Val', 'Luteal phase, day 20', 'switch on Cycle tracking']) expect(html).toContain(s)
+    for (const s of ['Period started today', 'Your averages', 'Cycle settings']) expect(html).not.toContain(s)
+  })
   it('renders the screen, the questions of the phase, averages and what is shared', () => {
-    const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard /></MemoryRouter>)
+    const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own /></MemoryRouter>)
     for (const s of ['Follicular phase', 'Felt strong in training?', 'Not contraception', 'Your averages', '28 days', 'Shared with you', 'Val']) expect(html).toContain(s)
   })
   it('the day sheet asks the phase questions and offers the rest', () => {
