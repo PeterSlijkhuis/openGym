@@ -30,10 +30,8 @@ import { WrappedHomeCard } from '../components/WrappedEntry.jsx'
 import RecoveryHint from '../components/RecoveryHint.jsx'
 import { ChallengesCard } from '../components/Challenges.jsx'
 import { isOn } from '../lib/modules.js'
-import { foodsOn, dayTotals, mealsOwed, MEAL_LABEL } from '../lib/food.js'
 import GarminHomeCard from '../components/GarminHomeCard.jsx'
-import { useGarmin } from '../components/useGarmin.js'
-import { foodGoal } from '../lib/garmin.js'
+import FoodHomeCard from '../components/FoodHomeCard.jsx'
 import CycleHomeCard from '../components/CycleHomeCard.jsx'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
@@ -116,7 +114,6 @@ export default function Home() {
   const left = workoutsLeft(S, todayISO())
   // The streak with its best run and freezes (lib/streak.js), read back from the workouts.
   const todayKey = todayISO()
-  const garmin = useGarmin()
   const streak = useMemo(() => streakInfo(S, todayKey), [S.workouts, S.weekStart, todayKey]) // eslint-disable-line react-hooks/exhaustive-deps
   // Settings → Modules (lib/modules.js): what a module switched off hides here.
   const on = id => isOn(S, id)
@@ -225,17 +222,7 @@ export default function Home() {
     <CycleHomeCard own={on('cycle')} />
 
     {/* Today's calories, one tap from the food diary (views/Food.jsx). */}
-    {on('food') && (() => {
-      const eaten = dayTotals(foodsOn(S, todayKey)).kcal
-      const goal = foodGoal(S, garmin, todayKey).goal?.kcal || null
-      const owed = S.foodNudge !== false ? mealsOwed(S, todayKey, new Date().getHours()) : []
-      return <div className="card tap-host">
-        <CardHead icon="flame" tint="var(--orange)" eyebrow={t('Food diary')}
-          title={goal ? t('{0} of {1} kcal', fmtNum(Math.round(eaten)), fmtNum(goal)) : fmtNum(Math.round(eaten)) + ' kcal'}
-          sub={owed.length ? t('Nothing logged for {0} yet', owed.map(m => t(MEAL_LABEL[m]).toLowerCase()).join(', ')) : null}
-          open={{ onClick: () => nav('/food') }} action={<Icon name="chevronRight" className="chev" />} />
-      </div>
-    })()}
+    {on('food') && <FoodHomeCard />}
 
     {!S.routines.length && !S.active && (
       <div className="card">

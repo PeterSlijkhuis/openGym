@@ -8,10 +8,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import timers from 'node:timers';
 import crypto from 'node:crypto';
+import net from 'node:net';
 import { handleFood } from './food-proxy.js';
 import { makeGarmin } from './garmin.js';
 import { makeCycle } from './cycle.js';
 import { backup } from './backup.js';
+import { prune } from './prune.js';
+import { serverStatus } from './status.js';
+import { catchAdminSocket, recoverRoute } from './recover.js';
 
 const DATA = '/tmp/data';
 const PORT = 8080;
@@ -78,7 +82,8 @@ export class Api extends DurableObject {
           throw e;
         }
       };
-      await import('../../api/server.js');
+      // recover.js: keep the api's admin-socket handler, which Workers cannot listen on.
+      this.askApi = await catchAdminSocket(net, () => import('../../api/server.js'), fs, '/tmp/sock');
       this.handler = httpServerHandler({ port: PORT });
       this.garmin = makeGarmin({ dataDir: DATA });
       this.cycle = makeCycle({ dataDir: DATA });
@@ -99,11 +104,15 @@ export class Api extends DurableObject {
     // closed: stay up past one tick, then the flush writes what it sent (db.json) to D1.
     const { pathname } = new URL(request.url);
     const res = pathname === '/__wake'
-      ? (await Promise.all([new Promise(r => setTimeout(() => r(new Response(null, { status: 204 })), 11000)), this.garmin.tick(), this.cycle.tick()]))[0]
+      ? await this.wake()
       : pathname === '/api/garmin' || pathname.startsWith('/api/garmin/')
         ? await this.garminRoute(request, this.garmin)
         : pathname === '/api/cycle' || pathname.startsWith('/api/cycle/')
           ? await this.garminRoute(request, this.cycle)
+        : pathname === '/api/fork/recover'
+          ? await recoverRoute(request, { secret: this.env.RECOVER_SECRET, ask: this.askApi })
+        : pathname === '/api/fork/status'
+          ? await this.garminRoute(request, { handle: (req, uid, user) => serverStatus({ env: this.env, dataDir: DATA, user, lastWake: this.lastWake }) })
         : await this.handler.fetch(request, this.env, this.ctx);
     // The answer goes out only once D1 has the change. A failed write is tried once more; if that
     // fails too a change is answered 503, so the app keeps it and sends it again (its 409 merge
@@ -124,7 +133,16 @@ export class Api extends DurableObject {
     return res;
   }
 
-  // /api/garmin* and /api/cycle* (garmin.js, cycle.js): the api says who is signed in, with the same cookie or bearer token.
+  // The cron's run: accounts deleted since the last one lose their Garmin and cycle files
+  // (prune.js), then the api's reminder tick, the Garmin pull and the cycle reminder.
+  async wake() {
+    this.lastWake = Date.now();
+    for (const f of prune(DATA)) console.log('pruned', f);
+    const [res] = await Promise.all([new Promise(r => setTimeout(() => r(new Response(null, { status: 204 })), 11000)), this.garmin.tick(), this.cycle.tick()]);
+    return res;
+  }
+
+  // /api/garmin*, /api/cycle* and /api/fork/status (garmin.js, cycle.js, status.js): the api says who is signed in, with the same cookie or bearer token.
   // OPTIONS goes to the api, which answers every preflight the same way.
   async garminRoute(request, svc) {
     if (request.method === 'OPTIONS') return this.handler.fetch(request, this.env, this.ctx);
@@ -141,7 +159,7 @@ export class Api extends DurableObject {
     if (request.method !== 'GET' && !bearer && (site ? site !== 'same-origin' && site !== 'none' : origin && origin !== this.env.ORIGIN)) {
       return new Response(JSON.stringify({ error: 'cross-origin request refused' }), { status: 403, headers: { 'content-type': 'application/json' } });
     }
-    const res = await svc.handle(request, user.id);
+    const res = await svc.handle(request, user.id, user);
     if (origin) { res.headers.set('Access-Control-Allow-Origin', origin); res.headers.set('Vary', 'Origin'); }
     return res;
   }

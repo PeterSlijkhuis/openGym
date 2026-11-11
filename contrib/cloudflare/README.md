@@ -67,9 +67,37 @@ wrangler delete --name opengym   # the old Worker; D1 and R2 are separate and st
 
 - Uploads live in R2 but are held in the object's memory (128 MB), so `wrangler.toml` caps them:
   50 MB per profile, 20 MB per video, 6 MB per GIF.
-- Timers (workout-day reminders, media sweeps) only run while the object is awake, so scheduled
-  reminders are not reliable here. Push itself is untested on Workers.
-- The locked-out-admin recovery (`node api/recover.js`) needs a local socket and does not work here.
+- The cron in `wrangler.toml` wakes the object every 5 minutes, so workout, meal and cycle reminders
+  and the hourly Garmin pull run with every app closed. A reminder can arrive up to 5 minutes late.
+  Push is sent by the api (web-push) and by `webpush.js` for Garmin and cycle reminders. On iPhone
+  it needs the app added to the Home Screen.
+- `node api/recover.js` needs a local socket and does not work here; `recover.js` in this folder
+  replaces it (see "Locked out" below). The owner makes codes for other accounts from the Admin screen.
+- Deleting an account removes its Garmin key and cycle log on the next cron run (`prune.js`). Both
+  are kept in their own files (`garmin/` and `cycle/` under `DATA_DIR`), outside the api's delete.
+
+## Locked out
+
+When the owner has lost every passkey, nobody can make a code for them from the app. `recover.js`
+gives the api's own recovery command a route, which only exists while a secret is set. In
+PowerShell, from `contrib/cloudflare`:
+
+```powershell
+$s = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
+$s | wrangler secret put RECOVER_SECRET
+curl.exe -s -X POST https://gym.petervaleria.com/api/fork/recover -H "authorization: Bearer $s" -d '{\"name\":\"Peter\"}'
+wrangler secret delete RECOVER_SECRET
+```
+
+The answer holds a code that works once, for a day, and signs the profile out everywhere. On the
+sign-in screen choose "Lost access?", then "I have a code". Delete the secret straight after: while
+it exists, anyone holding it can take over any account. Several profiles with the same name answer
+with their ids; send `{"id":"..."}` instead.
+
+## Home screen shortcuts
+
+`build.mjs` adds four shortcuts (Start workout, Log food, Weigh in, Garmin) to the built manifest.
+Long-press the installed app icon on Android or desktop to open one. iPhone does not show them.
 
 ## Local test
 
