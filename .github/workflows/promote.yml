@@ -1,0 +1,38 @@
+# Release from GitHub instead of a terminal: Actions, "Release development", Run workflow.
+# Fast-forwards main to development (the same commits, nothing rewritten, no merge commit) and
+# then starts "Deploy to Cloudflare" on main. A push made with the workflow's own token does not
+# start other workflows by itself, hence the explicit dispatch.
+name: Release development
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Fast-forward main to development
+        run: |
+          git fetch origin main development
+          if ! git merge-base --is-ancestor origin/main origin/development; then
+            echo "::error::main has commits that development lacks. Merge main into development first."
+            exit 1
+          fi
+          git log --oneline origin/main..origin/development
+          git push origin origin/development:refs/heads/main
+      - name: Deploy
+        run: gh workflow run cloudflare.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -116,6 +116,8 @@ wrangler dev --var ORIGIN:http://gym.petervaleria.com
 (Settings, Secrets and variables, Actions): `CLOUDFLARE_ACCOUNT_ID` (dashboard sidebar, Workers
 & Pages) and `CLOUDFLARE_API_TOKEN` (My Profile, API Tokens, Create Token, template "Edit
 Cloudflare Workers", then add Account / D1 / Edit and Account / Workers R2 Storage / Edit).
+To release without a terminal: Actions, "Release development", Run workflow. It fast-forwards
+`main` to `development` and starts the deploy.
 Do the manual deploy once first: the D1 id in `wrangler.toml` must be committed before the
 workflow can deploy.
 
