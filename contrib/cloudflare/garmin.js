@@ -211,6 +211,12 @@ export function cleanPrefs(p) {
   for (const k of ['sleepMin', 'zoneGoal', 'imGoal', 'teamGoal']) { const v = Math.round(Number(p?.[k])); if (v > 0 && v < 1e7) out[k] = v; }
   if (p?.teamKind === 'im' || p?.teamKind === 'steps') out.teamKind = p.teamKind;
   if (p?.push && typeof p.push === 'object') out.push = { morning: !!p.push.morning, expiry: p.push.expiry !== false };
+  // The adaptive day (frontend/src/lib/adaptive.js): auto, ask or off, and what happened each day.
+  if (p?.ready && typeof p.ready === 'object') out.ready = {
+    mode: ['auto', 'ask', 'off'].includes(p.ready.mode) ? p.ready.mode : 'auto',
+    log: [].concat(p.ready.log || []).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x?.d) && ['rest', 'easy', 'light'].includes(x.lv))
+      .slice(-40).map(x => ({ d: x.d, lv: x.lv, ...(x.u ? { u: 1 } : {}) })),
+  };
   if (p?.share && typeof p.share === 'object') out.share = {
     with: [].concat(p.share.with || []).map(String).filter(x => ID.test(x)).slice(0, 10),
     what: [].concat(p.share.what || []).filter(x => SHARE.includes(x)),

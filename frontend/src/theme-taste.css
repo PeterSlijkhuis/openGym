@@ -197,3 +197,19 @@ p{ text-wrap:pretty }
 .ob-days{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
 .ob-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
 .ob-rows .lrow{border-radius:12px;background:var(--surface-3,var(--surface))}
+
+/* The adaptive day at the top of a workout (components/ReadyAdapt.jsx). */
+.ready-adapt{margin:0 0 12px;padding:12px 14px;border-left:3px solid var(--indigo)}
+.ready-adapt.lv-rest{border-left-color:var(--pink)}
+.ready-adapt.lv-push{border-left-color:var(--teal)}
+.ra-head{display:flex;align-items:center;gap:10px}
+.ra-head>.icn{color:var(--indigo);font-size:20px}
+.ready-adapt.lv-push .ra-head>.icn{color:var(--teal)}
+.ra-mid{flex:1;min-width:0}
+.ra-title{font-weight:650}
+.ra-line{font-size:var(--fs-footnote);color:var(--label-2,var(--label))}
+.ra-why{margin:10px 0 0;padding:0 0 0 18px;font-size:var(--fs-footnote);display:grid;gap:4px}
+.ra-why li.bad::marker{color:var(--pink)}
+.ra-why li.good::marker{color:var(--teal)}
+.ra-why li.learnt{color:var(--label-2,var(--label));list-style:'≈  '}
+.ra-acts{display:flex;gap:8px;margin-top:10px}

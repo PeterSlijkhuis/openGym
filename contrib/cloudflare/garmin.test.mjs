@@ -103,6 +103,8 @@ test('body battery curve, sleep need, exercise sets', () => {
 test('settings keep only what is known, sharing shows only what was picked', () => {
   assert.deepEqual(cleanPrefs({ cards: ['ready', 'x y', 3], sleepMin: '480', push: { morning: 1 }, share: { with: ['u2', '../x'], what: ['steps', 'secret'] }, evil: 1 }),
     { cards: ['ready'], sleepMin: 480, push: { morning: true, expiry: true }, share: { with: ['u2'], what: ['steps'] } });
+  assert.deepEqual(cleanPrefs({ ready: { mode: 'nope', log: [{ d: '2026-11-10', lv: 'easy', u: true, x: 1 }, { d: 'bad', lv: 'easy' }, { d: '2026-11-09', lv: 'push' }] } }).ready,
+    { mode: 'auto', log: [{ d: '2026-11-10', lv: 'easy', u: 1 }] });
   const rec = { tz: 'UTC', days: { '2026-11-10': { steps: 5000, sleepSec: 27000, imMod: 10, imVig: 5 }, '2026-11-09': { steps: 7000 } } };
   assert.deepEqual(sharedOf(rec, ['steps', 'im'], NOW), { steps: 5000, weekSteps: 12000, weekIm: 20 });
 });

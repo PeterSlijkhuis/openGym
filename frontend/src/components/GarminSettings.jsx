@@ -70,6 +70,11 @@ export default function GarminSettings() {
       <Stepper label="Zone 2 a week" value={p.zoneGoal || 150} step={10} min={30} max={600} fmt={m => `${m} min`} set={v => save({ zoneGoal: v })} />
     </Section>
 
+    <Section title="Adapt my workouts" footer="On a rough day (bad sleep, low body battery, high stress, your own cycle log) the workout you start gets lighter. Automatic: done for you, with an undo. Ask: you decide each time. It learns from how those sessions go.">
+      <div className="lrow"><Segmented value={p.ready?.mode || 'auto'} onChange={v => save({ ready: { ...p.ready, mode: v } })}
+        options={[{ value: 'auto', label: 'Automatic' }, { value: 'ask', label: 'Ask me' }, { value: 'off', label: 'Off' }]} /></div>
+    </Section>
+
     <Section title="Notifications" footer="Sent to the devices where notifications are on in openGym's settings.">
       <SwitchRow title="Morning readiness" sub="Once last night's sleep is in, between 6 and 12" on={p.push?.morning} set={v => save({ push: { ...p.push, expiry: p.push?.expiry !== false, morning: v } })} />
       <SwitchRow title="Key runs out" sub="A week before your Garmin key expires" on={p.push?.expiry !== false} set={v => save({ push: { morning: !!p.push?.morning, expiry: v } })} />
