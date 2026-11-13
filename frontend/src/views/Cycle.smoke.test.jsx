@@ -21,16 +21,23 @@ import CycleHomeCard from '../components/CycleHomeCard.jsx'
 import { DaySheet, CycleSettings } from '../components/CycleSheets.jsx'
 
 describe('cycle screens', () => {
+  it('gives a partner an idea for each thing shared today', () => {
+    const before = globalThis.__C
+    globalThis.__C = { ...before, partners: [{ ...before.partners[0], level: 'care', cycle: 28, period: 5, today: { sym: ['tender'], mood: ['low'] } }] }
+    const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own={false} /></MemoryRouter>)
+    globalThis.__C = before
+    for (const s of ['What Val logged today', 'Tender breasts', 'warm or cool compress', 'Listen more than you fix', 'Val&#x27;s calendar']) expect(html).toContain(s)
+  })
   it('without the module the screen and Home card show only what is shared', () => {
     globalThis.__S = { workouts: [], routines: [], modules: { cycle: false } }
     const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own={false} /></MemoryRouter>)
     globalThis.__S = { workouts: [], routines: [], modules: { cycle: true } }
-    for (const s of ['Shared with you', 'Val', 'Luteal phase, day 20', 'switch on Cycle tracking']) expect(html).toContain(s)
-    for (const s of ['Period started today', 'Your averages', 'Cycle settings']) expect(html).not.toContain(s)
+    for (const s of ['Shared with you', 'Val<!-- --> today', 'Luteal phase', 'Cycle day <!-- -->20', 'Ideas for the luteal phase', 'Val: Luteal phase, day 20', 'switch on Cycle tracking']) expect(html).toContain(s)
+    for (const s of ['Period started today', 'Your averages', 'aria-label="Cycle settings"']) expect(html).not.toContain(s)
   })
   it('renders the screen, the questions of the phase, averages and what is shared', () => {
     const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own /></MemoryRouter>)
-    for (const s of ['Follicular phase', 'Felt strong in training?', 'Not contraception', 'Your averages', '28 days', 'Shared with you', 'Val']) expect(html).toContain(s)
+    for (const s of ['Follicular phase', 'Felt strong in training?', 'Not contraception', 'Your averages', '28 days', 'Val<!-- --> today', 'Expected ovulation', 'Period history', 'The four phases']) expect(html).toContain(s)
   })
   it('the day sheet asks the phase questions and offers the rest', () => {
     const html = renderToString(<DaySheet date={today} />)

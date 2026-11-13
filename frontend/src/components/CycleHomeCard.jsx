@@ -3,6 +3,9 @@
 import { useNavigate } from 'react-router-dom'
 import { todayISO, fmtDate } from '../lib/format.js'
 import { PHASES, forecast, phaseOn } from '../lib/cycle.js'
+import { partnerTips } from '../lib/cycle-care.js'
+
+const loggedToday = p => { const t = partnerTips(p.today); return t.length ? `Today: ${t.map(x => x.label).join(', ')}. Tap for ideas.` : null }
 import { useCycle } from './useCycle.js'
 import CardHead from './CardHead.jsx'
 import Icon from './Icon.jsx'
@@ -18,7 +21,7 @@ export default function CycleHomeCard({ own }) {
     if (!p.length) return null
     return <div className="card tap-host">
       <CardHead icon="moon" tint="var(--pink)" eyebrow="Cycle" title={p.length === 1 ? `${p[0].name}: ${PHASES[p[0].phase].label}, day ${p[0].day}` : `${p.length} people share their cycle`}
-        sub={p.length === 1 && p[0].next ? `Next period expected ${fmtDate(p[0].next.from)}` : null}
+        sub={p.length !== 1 ? null : loggedToday(p[0]) || (p[0].next ? `Next period expected ${fmtDate(p[0].next.from)}` : null)}
         open={{ onClick: () => nav('/cycle') }} action={<Icon name="chevronRight" className="chev" />} />
     </div>
   }

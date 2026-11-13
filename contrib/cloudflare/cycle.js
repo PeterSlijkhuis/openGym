@@ -4,12 +4,12 @@
 //     readable as text and a copy in another account's file does not open;
 //   - never part of the synced profile, so the Coach, the MCP server and the export cannot see it;
 //   - nobody else reads it unless the owner picks that account (prefs.share: { [uid]: level }), and
-//     even then only the phase, or the phase and the expected next period (lib/cycle.js sharedView).
-//     Notes, symptoms, moods and the fertile window are never shared.
+//     even then only what the level allows (lib/cycle.js sharedView): the phase, the expected next
+//     period, and at 'care' today's flow, symptoms and moods. Notes and the fertile window never.
 //
 //   GET    /api/cycle              -> { days, prefs, people, partners }
-//   PUT    /api/cycle/day          { date, flow, sym, mood, note } (an empty day deletes it)
-//   PUT    /api/cycle/prefs        { share: { uid: 'phase' | 'period' }, push: { period }, tz }
+//   PUT    /api/cycle/day          { date, flow, ov, sym, mood, note } (an empty day deletes it)
+//   PUT    /api/cycle/prefs        { share: { uid: 'phase' | 'period' | 'care' }, push: { period }, tz }
 //   DELETE /api/cycle              -> removes everything of this account
 // The cron (worker.js /__wake) sends the one reminder, the day before an expected period, with a
 // plain text that says nothing on a lock screen.

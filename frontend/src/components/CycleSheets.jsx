@@ -52,6 +52,7 @@ export function DaySheet({ date }) {
     <p className="muted small">{ph ? `${PHASES[ph.phase].label}, day ${ph.day} (an estimate)` : 'Log the first day of a period to see your phase.'}</p>
     <div className="muted small" style={{ margin: '12px 0 6px' }}>Flow</div>
     <Segmented value={day.flow || 0} onChange={v => put({ ...day, flow: v })} options={FLOW.map((label, value) => ({ value, label }))} />
+    <Section footer="A positive ovulation test, or the clear signs (stretchy discharge, a twinge on one side). A logged ovulation moves the estimate of your next period."><AskRow title="Ovulation today" on={day.ov} set={v => put({ ...day, ov: v ? 1 : 0 })} /></Section>
     <Section title={ph ? `Often asked in your ${PHASES[ph.phase].label.toLowerCase()}` : 'How are you feeling?'}><PhaseAsks date={date} day={day} /></Section>
     <div className="muted small" style={{ margin: '12px 0 6px' }}>More symptoms</div>
     <div className="chips wrap">{rest.map(id => <button key={id} className={'chip' + ((day.sym || []).includes(id) ? ' on' : '')} onClick={() => flip('sym', id)}>{SYMPTOMS[id].label}</button>)}</div>
@@ -62,7 +63,7 @@ export function DaySheet({ date }) {
   </>
 }
 
-const LEVEL = [{ value: 'off', label: 'Off' }, { value: 'phase', label: 'Phase' }, { value: 'period', label: '+ Next period' }]
+const LEVEL = [{ value: 'off', label: 'Off' }, { value: 'phase', label: 'Phase' }, { value: 'period', label: '+ Period' }, { value: 'care', label: '+ Feelings' }]
 
 export function CycleSettings() {
   const c = useCycle()
@@ -79,7 +80,7 @@ export function CycleSettings() {
     <Section title="Reminder" footer="One plain notification the morning before an expected period, with no detail on the lock screen. Sent to the devices where notifications are on in openGym's settings.">
       <AskRow title="Remind me the day before" on={p.push?.period} set={v => savePrefs({ push: { period: v } }).catch(fail)} />
     </Section>
-    <Section title="Share with" footer="Nobody sees anything until you pick them. Phase shows only the name of your current phase; the other level adds when your next period is expected. Symptoms, moods, notes and fertile days are never shared. You can stop at any time.">
+    <Section title="Share with" footer="Nobody sees anything until you pick them. Phase shows only your current phase and cycle day. + Period adds when your next period is expected. + Feelings also shares today's flow, symptoms and moods, so they get an idea of how to help with each one. Notes and fertile days are never shared. You can stop at any time.">
       {(c.people || []).length === 0 && <div className="lrow"><span className="lrow-m"><span className="lrow-s">No other accounts on this server yet.</span></span></div>}
       {(c.people || []).map(u => <div className="lrow" key={u.uid} style={{ flexWrap: 'wrap', gap: 8 }}>
         <span className="lrow-m"><span className="lrow-t">{u.name || 'Account'}</span></span>

@@ -71,12 +71,27 @@ export function cleanDay(d) {
   if (sym.length) out.sym = sym
   const mood = [...new Set([].concat(d.mood || []).filter(x => typeof x === 'string' && MOODS[x]))].slice(0, 4)
   if (mood.length) out.mood = mood
+  if (d.ov) out.ov = 1
   const note = typeof d.note === 'string' ? d.note.trim().slice(0, 1000) : ''
   if (note) out.note = note
   return Object.keys(out).length ? out : null
 }
 
 const dates = days => Object.keys(days || {}).filter(isDate).sort()
+
+/** The first day logged as ovulation in [from, to), or null. */
+export function loggedOv(days, from, to) {
+  return dates(days).find(d => d >= from && d < to && days[d].ov) || null
+}
+
+/**
+ * The ovulation day of the cycle starting at `start`: the logged one, else 14 days before the next
+ * period (known for a past cycle, `cycle` days on for the current one).
+ */
+const ovOf = (days, start, nextStart, cycle) => {
+  const logged = loggedOv(days, addDays(start, 6), nextStart || addDays(start, 60))
+  return { ov: logged || addDays(nextStart || addDays(start, cycle), -LUTEAL), logged: !!logged }
+}
 
 /** Periods from the days with flow: [{ start, end, len }], oldest first. Flow days up to 3 days apart are one period. */
 export function periods(days) {
@@ -115,9 +130,12 @@ export function forecast(days) {
   const ps = periods(days)
   if (!ps.length) return []
   const st = stats(days), last = ps[ps.length - 1]
-  return [1, 2, 3].map(k => {
-    const start = addDays(last.start, k * st.cycle), ov = addDays(start, -LUTEAL)
-    return { start, from: start, to: addDays(start, st.period - 1), ovulation: ov, fertile: { from: addDays(ov, -5), to: addDays(ov, 1) } }
+  // A logged ovulation in the current cycle moves the next period to 14 days after it.
+  const cur = ovOf(days, last.start, null, st.cycle)
+  const first = cur.logged ? addDays(cur.ov, LUTEAL) : addDays(last.start, st.cycle)
+  return [0, 1, 2].map(k => {
+    const start = addDays(first, k * st.cycle), ov = k === 0 ? cur.ov : addDays(start, -LUTEAL)
+    return { start, from: start, to: addDays(start, st.period - 1), ovulation: ov, ovLogged: k === 0 && cur.logged, fertile: { from: addDays(ov, -5), to: addDays(ov, 1) } }
   })
 }
 
@@ -126,25 +144,36 @@ export function forecast(days) {
  * `day` counts from the first day of that period. `late` is how many days past the expected start.
  */
 export function phaseOn(days, date, ps = periods(days), st = stats(days)) {
-  let last = null
-  for (const p of ps) if (p.start <= date) last = p
+  let last = null, next = null
+  for (const p of ps) if (p.start <= date) last = p; else if (!next) next = p
   if (!last) return null
   const day = diffDays(date, last.start) + 1
   if (date <= last.end) return { phase: 'menstrual', day, fertile: false, late: 0 }
-  const ov = addDays(last.start, st.cycle - LUTEAL)
-  const late = Math.max(0, diffDays(date, addDays(last.start, st.cycle)) + 1)
+  const { ov, logged } = ovOf(days, last.start, next?.start, st.cycle)
+  const late = next ? 0 : Math.max(0, diffDays(date, logged ? addDays(ov, LUTEAL) : addDays(last.start, st.cycle)) + 1)
   if (date < addDays(ov, -1)) return { phase: 'follicular', day, fertile: date >= addDays(ov, -5), late }
   if (date <= addDays(ov, 1)) return { phase: 'ovulation', day, fertile: true, late }
   return { phase: 'luteal', day, fertile: false, late }
 }
 
-/** How a calendar cell is coloured: logged flow, expected period, fertile window or ovulation day. */
-export function kindOn(days, date, fc = forecast(days)) {
+/**
+ * How a calendar cell is coloured. Logged days are solid: 'period' (flow) and 'ovulation'.
+ * Estimates are dotted: 'period-est', 'ovulation-est' and 'fertile-est', for the coming cycles
+ * and, looking back, for the ovulation of the cycles already behind.
+ */
+export function kindOn(days, date, fc = forecast(days), ps = periods(days), st = stats(days)) {
   if (days?.[date]?.flow) return 'period'
+  if (days?.[date]?.ov) return 'ovulation'
+  const est = (ov, from, to) => date >= from && date <= to ? (date === ov ? 'ovulation-est' : 'fertile-est') : null
   for (const f of fc) {
-    if (date >= f.from && date <= f.to) return 'predicted'
-    if (date === f.ovulation) return 'ovulation'
-    if (date >= f.fertile.from && date <= f.fertile.to) return 'fertile'
+    if (date >= f.from && date <= f.to) return 'period-est'
+    const k = est(f.ovulation, f.fertile.from, f.fertile.to)
+    if (k) return f.ovLogged && k === 'ovulation-est' ? 'ovulation' : k
+  }
+  for (let i = 0; i + 1 < ps.length; i++) {
+    if (date < ps[i].start || date >= ps[i + 1].start) continue
+    const { ov, logged } = ovOf(days, ps[i].start, ps[i + 1].start, st.cycle)
+    return logged ? null : est(ov, addDays(ov, -5), addDays(ov, 1))   // a logged ovulation is that cycle's answer
   }
   return null
 }
@@ -171,17 +200,31 @@ export function symptomsByPhase(days) {
   return Object.fromEntries(Object.entries(count).map(([p, c]) => [p, Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3)]))
 }
 
-/** The sharing levels an account can give another account. Fertile days and logs are never shared. */
-export const LEVELS = ['phase', 'period']
+/**
+ * The sharing levels an account can give another account, each adding to the one before:
+ * 'phase' the phase and cycle day, 'period' when the next period is expected and the usual
+ * lengths, 'care' also today's flow, symptoms and moods (so a partner can help).
+ * Notes and fertile days are never shared.
+ */
+export const LEVELS = ['phase', 'period', 'care']
 
-/** What an account shows an account it shares with: the phase only, or also when the next period is expected. */
+/** What an account shows an account it shares with, at that level. */
 export function sharedView(days, today, level) {
   const ph = phaseOn(days, today)
   if (!ph || !LEVELS.includes(level)) return {}
   const out = { phase: ph.phase, day: ph.day }
-  if (level === 'period') {
-    const next = forecast(days)[0]
-    if (next && next.start >= today) out.next = { from: addDays(next.start, -stats(days).spread), to: addDays(next.start, stats(days).spread) }
+  if (level === 'period' || level === 'care') {
+    const st = stats(days), next = forecast(days)[0]
+    out.cycle = st.cycle
+    out.period = st.period
+    if (next && next.start >= today) out.next = { from: addDays(next.start, -st.spread), to: addDays(next.start, st.spread) }
+  }
+  if (level === 'care') {
+    const d = days?.[today] || {}
+    out.today = {}
+    if (d.flow) out.today.flow = d.flow
+    if (d.sym?.length) out.today.sym = d.sym
+    if (d.mood?.length) out.today.mood = d.mood
   }
   return out
 }
