@@ -174,14 +174,17 @@ p{ text-wrap:pretty }
 /* --- cycle tracking (views/Cycle.jsx) ---
    Flo-style calendar: estimates pastel with a dotted ring, logged days solid and brighter.
    Red is the period, blue ovulation and the fertile window. */
-.cy-cal{--cy-red:#ff5a5f;--cy-red-soft:#4a2224;--cy-blue:#4a9dff;--cy-blue-soft:#1d3350;--cy-blue-pale:#16263b}
-:root[data-theme="light"] .cy-cal{--cy-red:#e5383b;--cy-red-soft:#ffd9da;--cy-blue:#1f7ae0;--cy-blue-soft:#d6e8ff;--cy-blue-pale:#ebf3ff}
+.cy-cal{--cy-red:#ff5a5f;--cy-red-soft:#4a2224;--cy-blue:#4a9dff;--cy-blue-soft:#1d3350;--cy-blue-pale:#16263b;--cy-red-pale:#33191b}
+:root[data-theme="light"] .cy-cal{--cy-red:#e5383b;--cy-red-soft:#ffd9da;--cy-blue:#1f7ae0;--cy-blue-soft:#d6e8ff;--cy-blue-pale:#ebf3ff;--cy-red-pale:#fff0f0}
 .cy-cal .cal-d{border-radius:50%}
 .cy-cal .cal-d.cy-period{background:var(--cy-red);color:#fff;font-weight:650}
 .cy-cal .cal-d.cy-ovulation{background:var(--cy-blue);color:#fff;font-weight:650}
 .cy-cal .cal-d.cy-period-est{background:var(--cy-red-soft);color:var(--label);outline:2px dotted var(--cy-red);outline-offset:-2px}
 .cy-cal .cal-d.cy-ovulation-est{background:var(--cy-blue-soft);color:var(--label);outline:2px dotted var(--cy-blue);outline-offset:-2px;font-weight:600}
 .cy-cal .cal-d.cy-fertile-est{background:var(--cy-blue-pale);color:var(--label);outline:2px dotted var(--cy-blue);outline:2px dotted color-mix(in srgb,var(--cy-blue) 55%,transparent);outline-offset:-2px}
+.cy-cal .cal-d.cy-period-range{background:var(--cy-red-pale);color:var(--label);outline:1.5px dotted var(--cy-red);outline:1.5px dotted color-mix(in srgb,var(--cy-red) 50%,transparent);outline-offset:-2px}
+.cy-cal .cal-d.cy-ovulation-range{background:var(--cy-blue-pale);color:var(--label);outline:1.5px dotted var(--cy-blue);outline:1.5px dotted color-mix(in srgb,var(--cy-blue) 55%,transparent);outline-offset:-2px}
+.cy-cal .cal-d.sel{box-shadow:0 0 0 2px var(--label)}
 .cy-cal .cal-d.cy-period i.done,.cy-cal .cal-d.cy-ovulation i.done{background:#fff}
 .cy-cal .cal-d:disabled{opacity:1;cursor:default}
 .cy-cal .cal-d.later:not([class*=" cy-"]){color:var(--label-3)}
@@ -192,15 +195,34 @@ p{ text-wrap:pretty }
 .cy-legend i.cy-ovulation{background:var(--cy-blue)}
 .cy-legend i.cy-period-est{background:var(--cy-red-soft);outline:1.5px dotted var(--cy-red);outline-offset:-1.5px}
 .cy-legend i.cy-ovulation-est{background:var(--cy-blue-soft);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
+.cy-legend i.cy-period-range{background:var(--cy-red-pale);outline:1.5px dotted var(--cy-red);outline-offset:-1.5px}
+.cy-legend i.cy-ovulation-range{background:var(--cy-blue-pale);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
 .cy-legend i.cy-fertile-est{background:var(--cy-blue-pale);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
 .cy-hero .cy-eyebrow{font-size:var(--fs-caption);color:var(--label-2);text-transform:uppercase;letter-spacing:.04em}
 .cy-phase{font-size:var(--fs-title2,22px);font-weight:650;letter-spacing:-.02em}
 .cy-facts{display:grid;gap:8px;margin:12px 0}
 .cy-facts>div{display:flex;justify-content:space-between;gap:12px}
 .cy-facts b{text-align:end}
+.cy-facts small{display:block;font-weight:400;color:var(--label-2);font-size:var(--fs-caption)}
 .cy-note{margin:12px 0 0}
 .cy-bar{display:block;height:6px;border-radius:3px;background:var(--surface-2);margin-top:6px}
 .cy-bar>span{display:block;height:100%;border-radius:3px;background:var(--pink)}
+/* The popover of a calendar day (components/CycleCalendar.jsx): one native popover, moved from day to day. */
+.cy-pop{position:fixed;inset:auto;margin:0;padding:14px 16px;width:min(340px,calc(100vw - 16px));max-height:min(72vh,560px);overflow:auto;border:0;border-radius:16px;background:var(--surface);color:var(--label);box-shadow:0 14px 44px rgba(0,0,0,.28),0 0 0 1px var(--hair,rgba(128,128,128,.18));font-size:var(--fs-subhead,15px);line-height:1.4;overscroll-behavior:contain}
+.cy-pop:not(:popover-open){display:none}
+.cy-pop-body p{margin:6px 0}
+.cy-pop-body h4{margin:14px 0 2px;font-size:var(--fs-footnote,13px);text-transform:uppercase;letter-spacing:.04em;color:var(--label-2)}
+.cy-pop-body ul{margin:6px 0;padding-inline-start:18px}
+.cy-pop-body li{margin:2px 0}
+.cy-pop-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cy-pop-ph{display:flex;align-items:center;margin-top:4px;font-weight:600}
+.cy-pop-est{padding:8px 10px;border-radius:10px;background:var(--surface-2)}
+.cy-pop-body .btn{margin-top:10px}
+.cy-tag{flex:none;font-size:var(--fs-caption);padding:2px 8px;border-radius:99px;font-weight:600;background:var(--cy-red-soft);color:var(--label)}
+.cy-tag.cy-period,.cy-tag.cy-ovulation{background:var(--cy-red);color:#fff}
+.cy-tag.cy-ovulation{background:var(--cy-blue)}
+.cy-tag.cy-ovulation-est,.cy-tag.cy-ovulation-range,.cy-tag.cy-fertile-est{background:var(--cy-blue-soft)}
+.cy-daycard{margin-top:14px;padding:14px;border-radius:14px;background:var(--surface-2)}
 /* The phase bar: four phases in their colours, today marked. */
 .cy-seg-menstrual{background:#f26b6f}
 .cy-seg-follicular{background:#f6c3a6}

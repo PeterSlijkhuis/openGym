@@ -118,3 +118,29 @@ export function partnerTips(today = {}) {
   for (const id of today.mood || []) if (PARTNER_MOOD[id]) out.push({ kind: 'mood', id, label: MOODS[id], text: PARTNER_MOOD[id] })
   return out
 }
+
+/** Foods and drinks that tend to ease each symptom (ids in SYMPTOMS). General nutrition, not treatment. */
+export const SYMPTOM_FOOD = {
+  cramps: 'Magnesium and omega-3: nuts, seeds, dark chocolate, oily fish. Ginger or chamomile tea and a warm meal.',
+  backache: 'Anti-inflammatory foods: oily fish, berries, olive oil, leafy greens. Plenty of water.',
+  headache: 'Water first. Magnesium (almonds, banana, spinach), regular meals and less caffeine.',
+  tender: 'Less caffeine and salt help some people. Fibre-rich meals, oats, flaxseed. The evidence is modest.',
+  bloating: 'Less salt and fizzy drinks. Potassium (banana, avocado, spinach), peppermint or fennel tea, eating slowly.',
+  nausea: 'Ginger tea or chews, plain crackers, small frequent meals. Cold food smells less.',
+  fatigue: 'Iron with vitamin C (lentils, beef, spinach with lemon), protein at every meal, steady carbs, water.',
+  acne: 'Steady blood sugar: whole grains and fewer sugary snacks. Zinc (pumpkin seeds, chickpeas) and water.',
+  cravings: 'Complex carbs with protein (oats, yoghurt, eggs). A square or two of dark chocolate counts.',
+  appetite: 'Protein and fibre fill you for longest: eggs, beans, oats, vegetables.',
+  insomnia: 'Magnesium-rich snacks (pumpkin seeds, banana), chamomile or warm milk, caffeine before noon only.',
+  digest: 'Fibre (oats, chia, vegetables), water and fermented foods like kefir. Gentle foods on loose days.',
+  sore: 'Protein after training (eggs, fish, tofu), tart cherry juice, omega-3 and water.',
+  weak: 'Carbs before training (oats, rice, banana) and iron-rich foods.',
+}
+
+/** What to eat in each phase to feel well. */
+export const PHASE_FOOD = {
+  menstrual: ['Iron-rich foods with vitamin C: red meat or lentils with spinach and lemon', 'Warm, soothing meals: soups, stews, ginger or chamomile tea', 'Magnesium and omega-3: dark chocolate, nuts, oily fish', 'Water, since fluid is lost too'],
+  follicular: ['Lean protein and fresh vegetables to support harder training', 'Whole grains for steady energy', 'Fermented foods and fibre (yoghurt, kimchi, oats)'],
+  ovulation: ['Light, fresh meals: raw vegetables and fruit', 'Fibre and zinc: seeds, chickpeas, whole grains', 'Plenty of water'],
+  luteal: ['Complex carbs: oats, sweet potato, brown rice', 'Magnesium: nuts, seeds, dark chocolate, leafy greens', 'Less salt and alcohol to ease bloating', 'Calcium and vitamin B6 (yoghurt, banana, chickpeas, salmon) help some people with premenstrual symptoms'],
+}

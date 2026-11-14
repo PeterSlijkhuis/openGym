@@ -25,13 +25,49 @@ describe('cycle', () => {
     expect(stats({})).toMatchObject({ cycle: 28, period: 5, known: false })
     expect(stats(flowDays(['2026-07-01', '2026-07-05'])).cycle).toBe(28)
   })
-  it('forecasts the next periods with ovulation 14 days before and a six-day fertile window', () => {
+  it('forecasts the next periods with ovulation 13 days before and a six-day fertile window', () => {
     const [n] = forecast(days)
     expect(n.start).toBe('2026-09-23')
     expect(n.to).toBe('2026-09-27')
-    expect(n.ovulation).toBe('2026-09-09')
-    expect(n.fertile).toEqual({ from: '2026-09-04', to: '2026-09-10' })
+    expect(n.ovulation).toBe('2026-09-10')
+    expect(n.fertile).toEqual({ from: '2026-09-05', to: '2026-09-11' })
     expect(forecast({})).toEqual([])
+    expect(forecast(days)).toHaveLength(6)
+  })
+  it('puts a range round each forecast that widens with the months ahead and with little history', () => {
+    const f = forecast(days)
+    expect(f[0]).toMatchObject({ half: 4, ovHalf: 5, startRange: { from: '2026-09-19', to: '2026-09-27' }, ovRange: { from: '2026-09-05', to: '2026-09-15' } })
+    expect(f.map(x => x.half)).toEqual([...f.map(x => x.half)].sort((a, b) => a - b))
+    expect(f[5].half).toBeGreaterThan(f[0].half)
+    expect(f.every(x => x.ovHalf >= x.half)).toBe(true)
+    const many = flowDays(Array.from({ length: 9 }, (_, i) => addDays('2026-01-01', i * 28)))
+    expect(forecast(many)[0].half).toBeLessThan(f[0].half)
+    expect(forecast(flowDays(['2026-08-26']))[0].half).toBeGreaterThan(f[0].half)
+    expect(forecast(flowDays(['2026-08-26'])).every(x => x.half <= 10)).toBe(true)
+  })
+  it('weights recent cycles, drops outliers and says how sure it is', () => {
+    const lens = (ls, start = '2026-01-01') => { const out = [start]; for (const l of ls) out.push(addDays(out.at(-1), l)); return flowDays(out) }
+    // one 50-day cycle (an illness month) does not move a steady 28
+    expect(stats(lens([28, 28, 28, 28, 28, 50, 28, 28])).mean).toBeCloseTo(28, 5)
+    // recent cycles count more: 26s then 32s lands above the plain mean of 29, even pulled toward 28
+    expect(stats(lens([26, 26, 26, 32, 32, 32])).mean).toBeGreaterThan(29.1)
+    expect(stats(lens([28, 29, 27, 28, 30, 28, 29]))).toMatchObject({ confidence: 'good', irregular: false })
+    expect(stats(lens([28, 28])).confidence).toBe('low')
+    expect(stats(lens([24, 35, 29, 41, 26, 33]))).toMatchObject({ confidence: 'low', irregular: true })
+    expect(stats({}).sd).toBeCloseTo(3.5, 5)
+  })
+  it('learns the luteal length from logged ovulation days', () => {
+    const d = { ...days, '2026-07-18': { ov: 1 }, '2026-08-15': { ov: 1 } }   // 11 days before the next period each time
+    expect(stats(d)).toMatchObject({ lutealN: 2, luteal: 12 })
+    expect(forecast(d)[0].ovulation).toBe('2026-09-11')
+    expect(forecast(d)[0].ovHalf).toBeLessThanOrEqual(forecast(days)[0].ovHalf)
+    expect(stats(days).luteal).toBe(13)
+  })
+  it('moves a period that is late to tomorrow on, and the later ones with it', () => {
+    expect(forecast(days, '2026-09-26')[0].start).toBe('2026-09-27')
+    expect(forecast(days, '2026-09-26')[1].start).toBe('2026-10-25')
+    expect(forecast(days, '2026-09-26')[0].startRange.from).toBe('2026-09-26')
+    expect(forecast(days, '2026-09-10')[0].start).toBe('2026-09-23')
   })
   it('names the phase of a day', () => {
     expect(phaseOn(days, '2026-08-27')).toMatchObject({ phase: 'menstrual', day: 2 })
@@ -45,26 +81,29 @@ describe('cycle', () => {
   it('colours calendar cells', () => {
     expect(kindOn(days, '2026-08-26')).toBe('period')
     expect(kindOn(days, '2026-09-24')).toBe('period-est')
-    expect(kindOn(days, '2026-09-09')).toBe('ovulation-est')
-    expect(kindOn(days, '2026-09-06')).toBe('fertile-est')
-    expect(kindOn(days, '2026-09-15')).toBe(null)
+    expect(kindOn(days, '2026-09-20')).toBe('period-range')
+    expect(kindOn(days, '2026-09-10')).toBe('ovulation-est')
+    expect(kindOn(days, '2026-09-06')).toBe('ovulation-range')
+    expect(kindOn(days, '2026-09-17')).toBe(null)
     // looking back: 14 days before the next logged period
-    expect(kindOn(days, '2026-07-15')).toBe('ovulation-est')
-    expect(kindOn(days, '2026-07-11')).toBe('fertile-est')
+    expect(kindOn(days, '2026-07-16')).toBe('ovulation-est')
+    expect(kindOn(days, '2026-07-12')).toBe('fertile-est')
   })
   it('lets a logged ovulation move the estimates', () => {
     const d = { ...days, '2026-09-13': { ov: 1 } }
     expect(cleanDay({ ov: true })).toEqual({ ov: 1 })
     expect(kindOn(d, '2026-09-13')).toBe('ovulation')
     expect(kindOn(d, '2026-09-09')).toBe('fertile-est')
-    expect(forecast(d)[0].start).toBe('2026-09-27')
-    expect(forecast(d)[1].start).toBe('2026-10-25')
+    expect(forecast(d)[0].start).toBe('2026-09-26')
+    expect(forecast(d)[0].ovRange).toBe(null)
+    expect(forecast(d)[0].half).toBeLessThan(forecast(days)[0].half)
+    expect(forecast(d)[1].start).toBe('2026-10-24')
     expect(phaseOn(d, '2026-09-13')).toMatchObject({ phase: 'ovulation' })
-    expect(phaseOn(d, '2026-09-26')).toMatchObject({ phase: 'luteal', late: 0 })
+    expect(phaseOn(d, '2026-09-25')).toMatchObject({ phase: 'luteal', late: 0 })
     // a past cycle with a logged ovulation shows no estimate
     const p = { ...days, '2026-07-17': { ov: 1 } }
     expect(kindOn(p, '2026-07-17')).toBe('ovulation')
-    expect(kindOn(p, '2026-07-15')).toBe(null)
+    expect(kindOn(p, '2026-07-16')).toBe(null)
   })
   it('lays a month out in weeks', () => {
     const g = monthGrid(2026, 10, 1) // November 2026 starts on a Sunday
@@ -80,7 +119,7 @@ describe('cycle', () => {
   })
   it('shares only what the level allows', () => {
     expect(sharedView(days, '2026-09-15', 'phase')).toEqual({ phase: 'luteal', day: 21 })
-    expect(sharedView(days, '2026-09-15', 'period')).toEqual({ phase: 'luteal', day: 21, cycle: 28, period: 5, next: { from: '2026-09-23', to: '2026-09-23' } })
+    expect(sharedView(days, '2026-09-15', 'period')).toEqual({ phase: 'luteal', day: 21, cycle: 28, period: 5, next: { from: '2026-09-19', to: '2026-09-27' } })
     const d = { ...days, '2026-09-15': { flow: 0, sym: ['tender'], mood: ['low'], note: 'private', ov: 1 } }
     expect(sharedView(d, '2026-09-15', 'care').today).toEqual({ sym: ['tender'], mood: ['low'] })
     expect(sharedView(d, '2026-09-15', 'period').today).toBe(undefined)

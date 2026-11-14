@@ -2,13 +2,15 @@
 // period and fertile window, a calendar and your own averages. Private to the account unless it
 // picks who may see its phase (components/CycleSheets.jsx). Plain English: ours, not upstream's.
 // Every date and phase is an ESTIMATE from the person's own logs: not contraception, not medical advice.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { fmtDate, todayISO, weekStartOf, DAYS } from '../lib/format.js'
-import { PHASES, SYMPTOMS, addDays, diffDays, forecast, kindOn, monthGrid, periods, phaseOn, stats, symptomsByPhase } from '../lib/cycle.js'
+import { fmtDate, todayISO, weekStartOf } from '../lib/format.js'
+import { PHASES, SYMPTOMS, LUTEAL, diffDays, forecast, kindOn, periods, phaseOn, stats, symptomsByPhase } from '../lib/cycle.js'
 import { PHASE_INFO, PARTNER_PHASE, partnerTips } from '../lib/cycle-care.js'
+import { ownDayInfo, partnerDayInfo, partnerKind } from '../lib/cycle-day.js'
+import CycleCalendar from '../components/CycleCalendar.jsx'
 import { useCycle, saveDay, savePrefs, refreshCycle } from '../components/useCycle.js'
 import { DaySheet, CycleSettings, PhaseAsks } from '../components/CycleSheets.jsx'
 import Icon from '../components/Icon.jsx'
@@ -48,8 +50,8 @@ function PartnerRows({ partners }) {
   return <>{partners.map(p => <Partner key={p.uid} p={p} />)}</>
 }
 
-// One person who shares their cycle: their phase in plain words, ideas for that phase, and (when
-// they share how they feel) one concrete idea for each thing they logged today.
+// One person who shares their cycle: where they are, their calendar (tap a day for what it means
+// and what to offer), and (when they share how they feel) an idea for each thing they logged today.
 function Partner({ p }) {
   const weekStart = weekStartOf(useStore(s => s.S))
   const today = todayISO(), info = PARTNER_PHASE[p.phase], tips = partnerTips(p.today)
@@ -63,6 +65,8 @@ function Partner({ p }) {
       <p style={{ margin: '10px 0 0' }}>{info.gist}</p>
       {next && <div className="cy-facts"><div><span className="muted">Next period expected</span><b>{next}</b></div></div>}
     </div>
+    {p.cycle && <CycleCalendar today={today} weekStart={weekStart} title={`${p.name}'s calendar`} viewer="partner" legend={['period', 'period-est', 'period-range']}
+      kind={d => partnerKind(p, today, d)} info={d => partnerDayInfo(p, d, today)} ahead={2} back={6} />}
     {p.today && <Section title={`What ${p.name} logged today`} footer={tips.length ? 'Ideas, not rules. Asking what would help is always a good start.' : null}>
       {tips.length ? tips.map(t => <div className="lrow cy-tip" key={t.kind + t.id}>
         <span className="lrow-i" style={{ '--tint': t.kind === 'mood' ? 'var(--indigo)' : 'var(--pink)' }}><Icon name={t.kind === 'mood' ? 'heart' : t.kind === 'flow' ? 'dot' : 'sparkles'} /></span>
@@ -73,29 +77,18 @@ function Partner({ p }) {
       {info.ideas.map(x => <Row key={x} icon="lightbulb" iconTint="var(--yellow)" title={x} />)}
     </Section>
     <PhaseExplainer phase={p.phase} title={`What is going on in the ${PHASES[p.phase].label.toLowerCase()}`} />
-    {p.cycle && <Calendar today={today} weekStart={weekStart} title={`${p.name}'s calendar`} legend={['period', 'period-est']}
-      kind={d => partnerKind(p, today, d)} />}
   </>
 }
 
-// The partner calendar: the current period (when in one) and the expected next one. The fertile
-// window is never shared, so it does not show.
-function partnerKind(p, today, d) {
-  const start = addDays(today, -(p.day - 1))
-  if (p.phase === 'menstrual' && d >= start && d < addDays(start, p.period || 5)) return d <= today ? 'period' : 'period-est'
-  if (p.next && d >= p.next.from && d <= addDays(p.next.to, (p.period || 5) - 1)) return 'period-est'
-  return null
-}
-
 /** The cycle as a bar of its four phases, with today marked. */
-function CycleTrack({ cycle, period = 5, day }) {
-  const ov = cycle - 14
-  const parts = [['menstrual', period], ['follicular', Math.max(1, ov - 1 - period)], ['ovulation', 3], ['luteal', Math.max(1, cycle - ov - 1)]]
+function CycleTrack({ cycle, period = 5, day, luteal = LUTEAL }) {
+  const ov = cycle + 1 - luteal
+  const parts = [['menstrual', period], ['follicular', Math.max(1, ov - 2 - period)], ['ovulation', 3], ['luteal', Math.max(1, cycle - ov - 1)]]
   const at = Math.min(100, ((day - 0.5) / cycle) * 100)
   return <div className="cy-track" aria-hidden="true">
     <div className="cy-track-bar">{parts.map(([k, n]) => <span key={k} className={'cy-seg cy-seg-' + k} style={{ flexGrow: n }} />)}</div>
     <i className="cy-track-at" style={{ insetInlineStart: at + '%' }} />
-    <div className="cy-track-l"><span>Day 1</span><span>Ovulation ~{ov}</span><span>Day {cycle}</span></div>
+    <div className="cy-track-l"><span>Day 1</span><span>Day {cycle}</span></div>
   </div>
 }
 
@@ -127,17 +120,37 @@ function AllPhases({ current }) {
   </Section>
 }
 
+const span = r => (r.from === r.to ? fmtDate(r.from) : `${fmtDate(r.from)} to ${fmtDate(r.to)}`)
+const days_ = n => `${n} day${n === 1 ? '' : 's'}`
+
+/** How sure the forecast is, said plainly. */
+function sureness(st) {
+  if (st.irregular) return { label: 'Low', text: `Your cycles vary by about ${days_(Math.round(st.rawSd))}, so treat the dates as a rough guide.` }
+  if (st.n < 3) return { label: 'Low', text: `Based on ${st.n === 0 ? 'no full cycle' : days_(st.n).replace('day', 'cycle')} so far. The ranges are wide until about six cycles are logged.` }
+  return { label: st.confidence === 'good' ? 'Good' : 'Fair', text: `Based on your last ${st.n} cycles, which usually land within ${days_(Math.max(1, st.spread))} of the average.` }
+}
+
+function Forecast({ fc, st }) {
+  const sure = sureness(st)
+  return <Section title="Coming months" footer={`Each range is where about 8 in 10 of your periods should start. It leans on your recent cycles, and widens month by month because small differences add up. Ovulation is counted back ${days_(st.luteal)} from the period${st.lutealN ? ' (your own length, from the ovulations you logged)' : ''}; logging ovulation tests makes it sharper. Estimates only, not contraception.`}>
+    <Row icon="gauge" iconTint="var(--indigo)" title="How sure is this?" value={sure.label} subtitle={sure.text} />
+    {fc.map(f => <Row key={f.k} icon="calendar" iconTint="var(--pink)" title={fmtDate(f.start, true)}
+      subtitle={`Likely ${span(f.startRange)}. Ovulation about ${fmtDate(f.ovulation)}${f.ovRange ? ` (${span(f.ovRange)})` : ' (logged)'}.`} value={`±${f.half} d`} />)}
+  </Section>
+}
+
 function Body({ c }) {
   const S = useStore(s => s.S)
   const days = c.days, today = todayISO()
   const ps = useMemo(() => periods(days), [days])
   const st = useMemo(() => stats(days), [days])
-  const fc = useMemo(() => forecast(days), [days])
+  const fc = useMemo(() => forecast(days, today), [days, today])
+  // Past three cycles ahead the ranges are too wide to draw: only the expected days show there.
+  const fcView = useMemo(() => fc.map(f => (f.k < 3 ? f : { ...f, startRange: { from: f.start, to: f.start }, ovRange: null })), [fc])
   const ph = phaseOn(days, today, ps, st)
   // The wearer's own clock decides "today" for reminders and for what a friend sees.
   useEffect(() => { if (TZ && c.prefs.tz !== TZ) savePrefs({ tz: TZ }).catch(() => {}) }, [c.prefs.tz])
   const next = fc[0]
-  const range = next && st.spread > 0 ? `${fmtDate(addDays(next.start, -st.spread))} to ${fmtDate(addDays(next.start, st.spread))}` : next && fmtDate(next.start)
   const toNext = next ? diffDays(next.start, today) : 0
   const startToday = () => saveDay(today, { ...days[today], flow: 2 }).catch(e => useUI.getState().toast(e.message))
   return <>
@@ -150,69 +163,35 @@ function Body({ c }) {
       {ph && <>
         <div className="cy-eyebrow">Today</div>
         <div className="cy-phase">{PHASES[ph.phase].label}</div>
-        <div className="muted">Cycle day {ph.day}{ph.late > 0 ? `, ${ph.late} day${ph.late === 1 ? '' : 's'} past the expected start. Cycles vary, this can be normal.` : ''}</div>
-        <CycleTrack cycle={st.cycle} period={st.period} day={ph.day} />
+        <div className="muted">Cycle day {ph.day}{ph.late > 0 ? `, ${days_(ph.late)} past the expected start. Cycles vary, this can be normal.` : ''}</div>
+        <CycleTrack cycle={st.cycle} period={st.period} day={ph.day} luteal={st.luteal} />
         <p style={{ margin: '10px 0 0' }}>{PHASES[ph.phase].tip}</p>
         <div className="cy-facts">
-          {next && ph.late === 0 && <div><span className="muted">Next period</span><b>{range}{toNext > 0 ? ` (in ${toNext} day${toNext === 1 ? '' : 's'})` : ''}</b></div>}
-          {next && ph.late === 0 && next.fertile.to >= today && <div><span className="muted">Fertile window</span><b>{fmtDate(next.fertile.from)} to {fmtDate(next.fertile.to)}</b></div>}
-          {next && ph.late === 0 && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ' (logged)' : ''}</span><b>{fmtDate(next.ovulation)}</b></div>}
+          {next && <div><span className="muted">Next period</span><b>{fmtDate(next.start)}{toNext > 0 ? ` (in ${days_(toNext)})` : ''}<small>{next.half > 0 ? `Likely ${span(next.startRange)}` : ''}</small></b></div>}
+          {next && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ' (logged)' : ''}</span><b>{fmtDate(next.ovulation)}{next.ovRange && <small>Likely {span(next.ovRange)}</small>}</b></div>}
+          {next && next.fertile.to >= today && <div><span className="muted">Fertile window</span><b>{fmtDate(next.fertile.from)} to {fmtDate(next.fertile.to)}</b></div>}
         </div>
         {!days[today]?.flow && <Button size="sm" variant="tinted" onClick={startToday}>Period started today</Button>}
       </>}
       <p className="muted small cy-note">Estimates from your own logs. Not contraception and not medical advice.</p>
     </div>
 
+    <CycleCalendar today={today} weekStart={weekStartOf(S)} viewer="own" legend={['period', 'period-est', 'period-range', 'ovulation', 'ovulation-est', 'ovulation-range', 'fertile-est']}
+      kind={d => kindOn(days, d, fcView, ps, st)} info={d => ownDayInfo(days, d, today)}
+      logged={d => days[d] && (days[d].sym?.length || days[d].mood?.length || days[d].note)}
+      onLog={d => openSheet(() => <DaySheet date={d} />)} />
+
     <Section title={ph ? `How are you feeling? ${PHASES[ph.phase].label}` : 'How are you feeling?'}>
       <PhaseAsks date={today} day={days[today]} />
       <Row icon="pencil" iconTint="var(--pink)" title="Flow, mood, more symptoms and notes" accessory="chevron" onClick={() => openSheet(() => <DaySheet date={today} />)} />
     </Section>
 
+    {fc.length > 0 && <Forecast fc={fc} st={st} />}
     {ph && <PhaseExplainer phase={ph.phase} title={`Your ${PHASES[ph.phase].label.toLowerCase()}`} />}
-    <Calendar today={today} weekStart={weekStartOf(S)} legend={['period', 'period-est', 'ovulation', 'ovulation-est', 'fertile-est']}
-      kind={d => kindOn(days, d, fc, ps, st)} logged={d => days[d] && (days[d].sym?.length || days[d].mood?.length || days[d].note)}
-      onPick={d => openSheet(() => <DaySheet date={d} />)} />
     <History days={days} ps={ps} st={st} />
     <AllPhases current={ph?.phase} />
     {c.partners?.length > 0 && <PartnerRows partners={c.partners} />}
   </>
-}
-
-const KIND = {
-  period: 'Period', 'period-est': 'Expected period', ovulation: 'Ovulation', 'ovulation-est': 'Expected ovulation', 'fertile-est': 'Fertile window',
-}
-
-// A month of the cycle. `kind(date)` colours a day (lib/cycle.js kindOn): logged days solid,
-// estimates pastel with a dotted ring. `onPick` makes past days tappable (own calendar only).
-function Calendar({ today, weekStart = 1, kind, logged = () => false, onPick, legend, title }) {
-  const now = new Date(today + 'T00:00:00')
-  const [ym, setYm] = useState([now.getFullYear(), now.getMonth()])
-  const grid = monthGrid(ym[0], ym[1], weekStart)
-  const go = n => { const d = new Date(ym[0], ym[1] + n, 1); setYm([d.getFullYear(), d.getMonth()]) }
-  const heads = [...DAYS.slice(weekStart), ...DAYS.slice(0, weekStart)]
-  return <Section title={title}><div className="card cy-cal">
-    <div className="hdr" style={{ marginBottom: 0 }}>
-      <button className="iconbtn" onClick={() => go(-1)} aria-label="Previous month"><Icon name="chevronLeft" /></button>
-      <div style={{ flex: 1, textAlign: 'center', fontWeight: 600 }}>{new Date(ym[0], ym[1], 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div>
-      <button className="iconbtn" onClick={() => go(1)} aria-label="Next month"><Icon name="chevronRight" /></button>
-    </div>
-    <div className="cal-grid">
-      {heads.map((h, i) => <div key={i} className="cal-h">{h}</div>)}
-      {grid.flat().map((d, i) => {
-        if (!d) return <div key={i} />
-        const k = kind(d), cls = 'cal-d' + (k ? ' cy-' + k : '') + (d === today ? ' today' : '') + (d > today ? ' later' : '')
-        const label = fmtDate(d, true) + (k ? ', ' + KIND[k] : '')
-        if (!onPick) return <div key={i} className={cls} aria-label={label}>{Number(d.slice(8))}<i /></div>
-        return <button key={i} className={cls} disabled={d > today} aria-label={label} onClick={() => onPick(d)}>
-          {Number(d.slice(8))}<i className={logged(d) ? 'done' : ''} />
-        </button>
-      })}
-    </div>
-    <div className="cal-legend cy-legend">
-      {legend.map(k => <span key={k}><i className={'cy-' + k} />{KIND[k]}</span>)}
-    </div>
-    {onPick && <p className="muted small" style={{ margin: '10px 0 0', textAlign: 'center' }}>Solid days are logged, dotted days are estimates. Tap a day to log it.</p>}
-  </div></Section>
 }
 
 function History({ days, ps, st }) {
@@ -226,7 +205,8 @@ function History({ days, ps, st }) {
       <Row title="Average period" value={`${st.period} day${st.period === 1 ? '' : 's'}`} />
       <Row title="Cycle regularity" value={!st.known || st.lengths.length < 3 ? 'Too early to say' : st.spread <= 2 ? 'Regular' : st.spread <= 4 ? 'Fairly regular' : 'Varies'}
         subtitle={st.known && st.lengths.length >= 3 ? `Cycles usually within ${st.spread} day${st.spread === 1 ? '' : 's'} of the average` : null} />
-      <Row title="Ovulation, usually around" value={`Cycle day ${st.cycle - 14}`} />
+      <Row title="Ovulation, usually around" value={`Cycle day ${st.cycle - st.luteal + 1}`} />
+      <Row title="Luteal phase" value={`${st.luteal} days`} subtitle={st.lutealN ? `From ${st.lutealN} ovulation${st.lutealN === 1 ? '' : 's'} you logged` : 'The usual length. Log ovulation tests to learn yours.'} />
       <Row title="Periods logged" value={String(st.count)} />
     </Section>
     <Section title="Period history">

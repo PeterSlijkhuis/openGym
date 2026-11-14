@@ -13,7 +13,11 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/
 export const isDate = s => typeof s === 'string' && ISO.test(s) && !Number.isNaN(ms(s))
 
 // The usual figures, used until the logs say otherwise.
-const CYCLE = 28, PERIOD = 5, LUTEAL = 14
+// Luteal phase (ovulation to the next period): about 12 to 13 days on average in large cycle
+// datasets, and fairly steady within one person. Replaced by your own once you log ovulation.
+const CYCLE = 28, PERIOD = 5
+export const LUTEAL = 13
+const Z80 = 1.2816   // a range that holds about 8 times in 10
 
 export const FLOW = ['None', 'Light', 'Medium', 'Heavy']
 
@@ -85,12 +89,12 @@ export function loggedOv(days, from, to) {
 }
 
 /**
- * The ovulation day of the cycle starting at `start`: the logged one, else 14 days before the next
- * period (known for a past cycle, `cycle` days on for the current one).
+ * The ovulation day of the cycle starting at `start`: the logged one, else `luteal` days before the
+ * next period (known for a past cycle, `cycle` days on for the current one).
  */
-const ovOf = (days, start, nextStart, cycle) => {
+const ovOf = (days, start, nextStart, cycle, luteal = LUTEAL) => {
   const logged = loggedOv(days, addDays(start, 6), nextStart || addDays(start, 60))
-  return { ov: logged || addDays(nextStart || addDays(start, cycle), -LUTEAL), logged: !!logged }
+  return { ov: logged || addDays(nextStart || addDays(start, cycle), -luteal), logged: !!logged }
 }
 
 /** Periods from the days with flow: [{ start, end, len }], oldest first. Flow days up to 3 days apart are one period. */
@@ -105,37 +109,94 @@ export function periods(days) {
   return out
 }
 
-const mean = a => a.reduce((n, x) => n + x, 0) / a.length
+const sum = a => a.reduce((n, x) => n + x, 0)
+const mean = a => sum(a) / a.length
+const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n))
 
-/** Averages over the last six cycles: { cycle, period, count, min, max, spread, lengths }. */
+/**
+ * What the logs say about this person's cycle, as a small statistical model:
+ *  - the last 12 cycle lengths (15 to 60 days), minus outliers (further than 3 robust SDs, at least
+ *    7 days, from the median: a missed log or an illness month must not drag the estimate);
+ *  - an exponentially weighted mean (each older cycle counts 0.9 of the next), pulled toward the
+ *    usual 28 days by one pseudo-cycle, so one or two cycles do not decide everything;
+ *  - a spread (SD) pulled toward a typical 3.5 days by three pseudo-cycles, so a short run of
+ *    equal cycles does not claim more certainty than it has;
+ *  - your own luteal length from the cycles where you logged ovulation, else 13 days.
+ * Fields: cycle (rounded mean), mean, sd, rawSd (this person's own, null under 2 cycles), n, eff
+ * (effective number of cycles after weighting), period, count, min, max, lengths, known,
+ * luteal, lutealSd, lutealN, confidence ('low' | 'fair' | 'good'), irregular, spread.
+ */
 export function stats(days) {
   const ps = periods(days)
   const lengths = ps.slice(1).map((p, i) => diffDays(p.start, ps[i].start)).filter(n => n >= 15 && n <= 60)
-  const recent = lengths.slice(-6)
-  const cycle = recent.length ? Math.round(mean(recent)) : CYCLE
-  const sd = recent.length > 1 ? Math.sqrt(mean(recent.map(n => (n - mean(recent)) ** 2))) : 0
-  const plen = ps.slice(-6).map(p => p.len).filter(n => n <= 10)
+  let use = lengths.slice(-12)
+  if (use.length >= 4) {
+    const med = median(use), lim = Math.max(3 * 1.4826 * median(use.map(n => Math.abs(n - med))), 7)
+    use = use.filter(n => Math.abs(n - med) <= lim)
+  }
+  const n = use.length, w = use.map((_, i) => 0.9 ** (n - 1 - i)), W = sum(w)
+  const raw = n ? sum(w.map((x, i) => x * use[i])) / W : CYCLE
+  const meanF = (W * raw + CYCLE) / (W + 1)
+  const s2 = n > 1 ? (sum(w.map((x, i) => x * (use[i] - raw) ** 2)) / W) * (n / (n - 1)) : 0
+  const sd = Math.max(1, Math.sqrt((3 * 3.5 ** 2 + Math.max(0, n - 1) * s2) / (3 + Math.max(0, n - 1))))
+  const rawSd = n > 1 ? Math.sqrt(s2) : null
+  const eff = n ? W * W / sum(w.map(x => x * x)) : 0
+  // Own luteal length: days from a logged ovulation to the next period.
+  const lut = []
+  ps.forEach((p, i) => {
+    const o = ps[i + 1] && loggedOv(days, addDays(p.start, 6), ps[i + 1].start)
+    const l = o ? diffDays(ps[i + 1].start, o) : 0
+    if (l >= 8 && l <= 18) lut.push(l)
+  })
+  const lm = lut.length ? mean(lut) : LUTEAL, ls2 = lut.length > 1 ? sum(lut.map(x => (x - lm) ** 2)) / (lut.length - 1) : 0
+  const plen = ps.slice(-6).map(p => p.len).filter(x => x <= 10)
   return {
-    cycle, period: plen.length ? Math.round(mean(plen)) : PERIOD, count: ps.length,
+    cycle: Math.round(meanF), mean: meanF, sd, rawSd, n, eff,
+    period: plen.length ? Math.round(mean(plen)) : PERIOD, count: ps.length,
     min: lengths.length ? Math.min(...lengths) : null, max: lengths.length ? Math.max(...lengths) : null,
-    spread: Math.min(7, Math.round(sd)), lengths, known: recent.length > 0,
+    spread: Math.min(7, Math.round(rawSd || 0)), lengths, known: n > 0,
+    luteal: Math.round((lut.length * lm + 2 * LUTEAL) / (lut.length + 2)), lutealN: lut.length,
+    lutealSd: Math.sqrt((2 * 1.8 ** 2 + Math.max(0, lut.length - 1) * ls2) / (2 + Math.max(0, lut.length - 1))),
+    confidence: n >= 6 && rawSd <= 3 ? 'good' : n >= 3 && rawSd <= 4.5 ? 'fair' : 'low',
+    irregular: n >= 3 && rawSd > 4.5,
   }
 }
 
 /**
- * The next three periods after the last logged one, each with its fertile window and ovulation
- * day: [{ start, from, to, ovulation, fertile: { from, to } }]. [] before any period is logged.
+ * The next `count` periods after the last logged one (default six, about half a year), each with
+ * the range it should fall in, the ovulation day with its range, and the fertile window:
+ * [{ k, start, from, to, startRange: { from, to }, half, ovulation, ovLogged, ovRange, ovHalf,
+ * fertile: { from, to } }]. [] before any period is logged.
+ *
+ * The ranges are about 80% ranges: of past cycles with this much history, about 8 in 10 fell
+ * inside. They grow with each month ahead (errors add up: variance k * SD squared, plus the
+ * uncertainty of the mean itself) and are widest when there is little history. Ovulation adds the
+ * uncertainty of the luteal length: a plain 4 days squared until you log ovulation yourself.
+ * A logged ovulation in the current cycle pins the next period to your luteal length after it.
+ * With `today`, a period already late is expected from tomorrow on, and later ones move with it.
  */
-export function forecast(days) {
+export function forecast(days, today = null, count = 6) {
   const ps = periods(days)
   if (!ps.length) return []
-  const st = stats(days), last = ps[ps.length - 1]
-  // A logged ovulation in the current cycle moves the next period to 14 days after it.
-  const cur = ovOf(days, last.start, null, st.cycle)
-  const first = cur.logged ? addDays(cur.ov, LUTEAL) : addDays(last.start, st.cycle)
-  return [0, 1, 2].map(k => {
-    const start = addDays(first, k * st.cycle), ov = k === 0 ? cur.ov : addDays(start, -LUTEAL)
-    return { start, from: start, to: addDays(start, st.period - 1), ovulation: ov, ovLogged: k === 0 && cur.logged, fertile: { from: addDays(ov, -5), to: addDays(ov, 1) } }
+  const st = stats(days), last = ps[ps.length - 1], L = st.luteal
+  const cur = ovOf(days, last.start, null, st.cycle, L)
+  const sd2 = st.sd ** 2, div = st.eff + 1, lVar = st.lutealN ? st.lutealSd ** 2 / (st.lutealN + 1) : 4
+  const first = cur.logged ? addDays(cur.ov, L) : addDays(last.start, Math.round(st.mean))
+  const late = today && first < today ? diffDays(addDays(today, 1), first) : 0
+  return Array.from({ length: count }, (_, j) => {
+    const start = addDays(first, late + Math.round(j * st.mean))
+    const v = cur.logged ? st.lutealSd ** 2 + j * sd2 * (1 + j / div) : (j + 1) * sd2 * (1 + (j + 1) / div)
+    const half = clamp(Math.round(Z80 * Math.sqrt(v)), 1, 10)
+    const ovLogged = j === 0 && cur.logged
+    const ov = ovLogged ? cur.ov : addDays(start, -L)
+    const ovHalf = ovLogged ? 0 : clamp(Math.round(Z80 * Math.sqrt(v + lVar)), 1, 10)
+    return {
+      k: j, start, from: start, to: addDays(start, st.period - 1),
+      startRange: { from: today && late ? addDays(start, -Math.min(half, diffDays(start, today))) : addDays(start, -half), to: addDays(start, half) }, half,
+      ovulation: ov, ovLogged, ovRange: ovLogged ? null : { from: addDays(ov, -ovHalf), to: addDays(ov, ovHalf) }, ovHalf,
+      fertile: { from: addDays(ov, -5), to: addDays(ov, 1) },
+    }
   })
 }
 
@@ -149,8 +210,8 @@ export function phaseOn(days, date, ps = periods(days), st = stats(days)) {
   if (!last) return null
   const day = diffDays(date, last.start) + 1
   if (date <= last.end) return { phase: 'menstrual', day, fertile: false, late: 0 }
-  const { ov, logged } = ovOf(days, last.start, next?.start, st.cycle)
-  const late = next ? 0 : Math.max(0, diffDays(date, logged ? addDays(ov, LUTEAL) : addDays(last.start, st.cycle)) + 1)
+  const { ov, logged } = ovOf(days, last.start, next?.start, st.cycle, st.luteal)
+  const late = next ? 0 : Math.max(0, diffDays(date, logged ? addDays(ov, st.luteal) : addDays(last.start, st.cycle)) + 1)
   if (date < addDays(ov, -1)) return { phase: 'follicular', day, fertile: date >= addDays(ov, -5), late }
   if (date <= addDays(ov, 1)) return { phase: 'ovulation', day, fertile: true, late }
   return { phase: 'luteal', day, fertile: false, late }
@@ -158,22 +219,23 @@ export function phaseOn(days, date, ps = periods(days), st = stats(days)) {
 
 /**
  * How a calendar cell is coloured. Logged days are solid: 'period' (flow) and 'ovulation'.
- * Estimates are dotted: 'period-est', 'ovulation-est' and 'fertile-est', for the coming cycles
- * and, looking back, for the ovulation of the cycles already behind.
+ * Estimates are dotted: 'period-est' (the expected days), 'period-range' (the days around them it
+ * may start on), 'ovulation-est' (the day), 'ovulation-range' (the days around it), 'fertile-est'
+ * (the six-day window); looking back, the ovulation of the cycles already behind.
  */
 export function kindOn(days, date, fc = forecast(days), ps = periods(days), st = stats(days)) {
   if (days?.[date]?.flow) return 'period'
   if (days?.[date]?.ov) return 'ovulation'
-  const est = (ov, from, to) => date >= from && date <= to ? (date === ov ? 'ovulation-est' : 'fertile-est') : null
-  for (const f of fc) {
-    if (date >= f.from && date <= f.to) return 'period-est'
-    const k = est(f.ovulation, f.fertile.from, f.fertile.to)
-    if (k) return f.ovLogged && k === 'ovulation-est' ? 'ovulation' : k
-  }
+  for (const f of fc) if (date >= f.from && date <= f.to) return 'period-est'
+  for (const f of fc) if (date >= f.startRange.from && date <= f.startRange.to) return 'period-range'
+  for (const f of fc) if (!f.ovLogged && date === f.ovulation) return 'ovulation-est'
+  for (const f of fc) if (f.ovRange && date >= f.ovRange.from && date <= f.ovRange.to) return 'ovulation-range'
+  for (const f of fc) if (date >= f.fertile.from && date <= f.fertile.to) return 'fertile-est'
   for (let i = 0; i + 1 < ps.length; i++) {
     if (date < ps[i].start || date >= ps[i + 1].start) continue
-    const { ov, logged } = ovOf(days, ps[i].start, ps[i + 1].start, st.cycle)
-    return logged ? null : est(ov, addDays(ov, -5), addDays(ov, 1))   // a logged ovulation is that cycle's answer
+    const { ov, logged } = ovOf(days, ps[i].start, ps[i + 1].start, st.cycle, st.luteal)
+    if (logged || date < addDays(ov, -5) || date > addDays(ov, 1)) return null   // a logged ovulation is that cycle's answer
+    return date === ov ? 'ovulation-est' : 'fertile-est'
   }
   return null
 }
@@ -214,10 +276,10 @@ export function sharedView(days, today, level) {
   if (!ph || !LEVELS.includes(level)) return {}
   const out = { phase: ph.phase, day: ph.day }
   if (level === 'period' || level === 'care') {
-    const st = stats(days), next = forecast(days)[0]
+    const st = stats(days), next = forecast(days, today)[0]
     out.cycle = st.cycle
     out.period = st.period
-    if (next && next.start >= today) out.next = { from: addDays(next.start, -st.spread), to: addDays(next.start, st.spread) }
+    if (next && next.start >= today) out.next = { from: next.startRange.from, to: next.startRange.to }
   }
   if (level === 'care') {
     const d = days?.[today] || {}

@@ -37,7 +37,7 @@ describe('cycle screens', () => {
   })
   it('renders the screen, the questions of the phase, averages and what is shared', () => {
     const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own /></MemoryRouter>)
-    for (const s of ['Follicular phase', 'Felt strong in training?', 'Not contraception', 'Your averages', '28 days', 'Val<!-- --> today', 'Expected ovulation', 'Period history', 'The four phases']) expect(html).toContain(s)
+    for (const s of ['Follicular phase', 'Felt strong in training?', 'Not contraception', 'Your averages', '28 days', 'Val<!-- --> today', 'Expected ovulation', 'Ovulation range', 'Coming months', 'How sure is this?', 'Period history', 'The four phases', 'a day to see what it means']) expect(html).toContain(s)
   })
   it('the day sheet asks the phase questions and offers the rest', () => {
     const html = renderToString(<DaySheet date={today} />)
