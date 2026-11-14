@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { fmtDate, todayISO, weekStartOf } from '../lib/format.js'
-import { PHASES, SYMPTOMS, LUTEAL, addDays, diffDays, forecast, kindOn, ongoing, periods, phaseOn, stats, symptomsByPhase } from '../lib/cycle.js'
+import { PHASES, SYMPTOMS, LUTEAL, addDays, diffDays, forecast, kindOn, ongoing, ovDay, periods, phaseOn, stats, symptomsByPhase, upcoming, cycleSignals } from '../lib/cycle.js'
 import { PHASE_INFO, PARTNER_PHASE, partnerTips } from '../lib/cycle-care.js'
 import { ownDayInfo, partnerDayInfo, partnerKind } from '../lib/cycle-day.js'
 import CycleCalendar from '../components/CycleCalendar.jsx'
@@ -114,15 +114,16 @@ function PhaseExplainer({ phase, title }) {
 /** All four phases, folded: tap one to read it. */
 function AllPhases({ current }) {
   return <Section title="The four phases">
-    {Object.keys(PHASE_INFO).map(k => <details key={k} className="cy-more" open={false}>
+    {Object.keys(PHASE_INFO).map(k => <details key={k} className="cy-more" open={k === current}>
       <summary className="lrow tap"><span className={'cy-dot cy-seg-' + k} /><span className="lrow-m"><span className="lrow-t">{PHASES[k].label}{k === current ? ' (now)' : ''}</span><span className="lrow-s">{PHASE_INFO[k].days}</span></span><Icon name="chevronDown" className="lrow-c" /></summary>
-      <dl className="cy-info"><dt>What is happening</dt><dd>{PHASE_INFO[k].what}</dd><dt>Common signs</dt><dd>{PHASE_INFO[k].feel}</dd><dt>Training</dt><dd>{PHASE_INFO[k].train}</dd><dt>Food</dt><dd>{PHASE_INFO[k].food}</dd></dl>
+      <dl className="cy-info"><dt>What is happening</dt><dd>{PHASE_INFO[k].what}</dd><dt>Common signs</dt><dd>{PHASE_INFO[k].feel}</dd><dt>Energy</dt><dd>{PHASE_INFO[k].energy}</dd><dt>Training</dt><dd>{PHASE_INFO[k].train}</dd><dt>Food</dt><dd>{PHASE_INFO[k].food}</dd><dt>Mood</dt><dd>{PHASE_INFO[k].mind}</dd></dl>
     </details>)}
   </Section>
 }
 
 const span = r => (r.from === r.to ? fmtDate(r.from) : `${fmtDate(r.from)} to ${fmtDate(r.to)}`)
 const days_ = n => `${n} day${n === 1 ? '' : 's'}`
+const OV_BY = { logged: 'logged', lh: 'from your LH test', temp: 'from your temperature' }
 
 /** How sure the forecast is, said plainly. */
 function sureness(st) {
@@ -136,7 +137,49 @@ function Forecast({ fc, st }) {
   return <Section title="Coming months" footer={`Each range is where about 8 in 10 of your periods should start. It leans on your recent cycles, and widens month by month because small differences add up. Ovulation is counted back ${days_(st.luteal)} from the period${st.lutealN ? ' (your own length, from the ovulations you logged)' : ''}; logging ovulation tests makes it sharper. Estimates only, not contraception.`}>
     <Row icon="gauge" iconTint="var(--indigo)" title="How sure is this?" value={sure.label} subtitle={sure.text} />
     {fc.map(f => <Row key={f.k} icon="calendar" iconTint="var(--pink)" title={fmtDate(f.start, true)}
-      subtitle={`Likely ${span(f.startRange)}. Ovulation about ${fmtDate(f.ovulation)}${f.ovRange ? ` (${span(f.ovRange)})` : ' (logged)'}.`} value={`±${f.half} d`} />)}
+      subtitle={`Likely ${span(f.startRange)}. Ovulation about ${fmtDate(f.ovulation)}${f.ovRange ? ` (${span(f.ovRange)})` : ` (${OV_BY[f.ovBy]})`}.`} value={`±${f.half} d`} />)}
+  </Section>
+}
+
+/** What your own history says is coming in the next days (lib/cycle.js upcoming). */
+function ComingUp({ up }) {
+  if (!up) return null
+  const when = up.when === 'during' ? 'In the first days of your period' : `In the week before your period${up.toNext ? `, which is about ${days_(up.toNext)} away` : ''}`
+  return <Section title="Coming up" footer="From the days you logged before past periods. Plan ahead: the foods and ideas in each day's popover help.">
+    <div className="lrow"><span className="lrow-m"><span className="lrow-t">{when}, you usually log:</span>
+      <span className="lrow-s">{up.list.map(x => `${x.label} (${x.n} of ${x.of})`).join(', ')}</span></span></div>
+  </Section>
+}
+
+/** Patterns worth knowing (lib/cycle.js cycleSignals): general information, never a diagnosis. */
+function Signals({ list }) {
+  if (!list.length) return null
+  return <Section title="Worth knowing" footer="General information from your own logs, not a diagnosis.">
+    {list.map(x => <div className="lrow cy-tip" key={x.id}><span className="lrow-i" style={{ '--tint': 'var(--orange)' }}><Icon name="info" /></span>
+      <span className="lrow-m"><span className="lrow-s">{x.text}</span></span></div>)}
+  </Section>
+}
+
+/** Waking temperatures of the current cycle, with the cover line once a rise is found. */
+function TempChart({ days, start, today, fahrenheit }) {
+  const pts = []
+  for (let d = start; d <= today; d = addDays(d, 1)) if (days[d]?.temp) pts.push([diffDays(d, start), days[d].temp, d])
+  if (pts.length < 3) return null
+  const shown = c => (fahrenheit ? Math.round((c * 9 / 5 + 32) * 10) / 10 : c)
+  const ov = ovDay(days, addDays(start, 6), addDays(today, 1))
+  const ys = pts.map(p => p[1]), lo = Math.min(...ys) - 0.1, hi = Math.max(...ys) + 0.1
+  const span = Math.max(diffDays(today, start), 14), W = 320, H = 110
+  const x = n => 8 + (n / span) * (W - 16), y = v => 8 + (1 - (v - lo) / (hi - lo)) * (H - 24)
+  return <Section title="Waking temperature" footer={ov?.by === 'temp' ? `A rise was found: ovulation about ${fmtDate(ov.date)}. The dashed line is the highest of the six readings before it.` : 'Take it before getting up, at about the same time each day. Three readings above the highest of the six before mark ovulation.'}>
+    <div className="card cy-temp-chart">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Waking temperature, ${pts.length} readings this cycle`}>
+        {ov?.by === 'temp' && <line x1="8" x2={W - 8} y1={y(ov.cover)} y2={y(ov.cover)} className="cy-cover" />}
+        <polyline points={pts.map(p => `${x(p[0])},${y(p[1])}`).join(' ')} className="cy-tline" />
+        {pts.map(p => <circle key={p[2]} cx={x(p[0])} cy={y(p[1])} r="3" className="cy-tdot"><title>{`${fmtDate(p[2])}: ${shown(p[1])} ${fahrenheit ? '°F' : '°C'}`}</title></circle>)}
+        <text x="8" y={H - 4} className="cy-tlab">Day 1</text>
+        <text x={W - 8} y={H - 4} textAnchor="end" className="cy-tlab">{`${shown(lo + 0.1)} to ${shown(hi - 0.1)} ${fahrenheit ? '°F' : '°C'}`}</text>
+      </svg>
+    </div>
   </Section>
 }
 
@@ -173,7 +216,7 @@ function Body({ c }) {
         <p style={{ margin: '10px 0 0' }}>{PHASES[ph.phase].tip}</p>
         <div className="cy-facts">
           {next && <div><span className="muted">Next period</span><b>{fmtDate(next.start)}{toNext > 0 ? ` (in ${days_(toNext)})` : ''}<small>{next.half > 0 ? `Likely ${span(next.startRange)}` : ''}</small></b></div>}
-          {next && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ' (logged)' : ''}</span><b>{fmtDate(next.ovulation)}{next.ovRange && <small>Likely {span(next.ovRange)}</small>}</b></div>}
+          {next && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ` (${OV_BY[next.ovBy]})` : ''}</span><b>{fmtDate(next.ovulation)}{next.ovRange && <small>Likely {span(next.ovRange)}</small>}</b></div>}
           {next && next.fertile.to >= today && <div><span className="muted">Fertile window</span><b>{fmtDate(next.fertile.from)} to {fmtDate(next.fertile.to)}</b></div>}
         </div>
         {open && <div className="cy-open">
@@ -197,8 +240,10 @@ function Body({ c }) {
       <Row icon="pencil" iconTint="var(--pink)" title="Flow, mood, more symptoms and notes" accessory="chevron" onClick={() => openSheet(() => <DaySheet date={today} />)} />
     </Section>
 
+    <ComingUp up={upcoming(days, today, ps, fc)} />
+    <Signals list={cycleSignals(days, today, ps, st)} />
+    {ps.length > 0 && <TempChart days={days} start={ps[ps.length - 1].start} today={today} fahrenheit={S.unit === 'lb'} />}
     {fc.length > 0 && <Forecast fc={fc} st={st} />}
-    {ph && <PhaseExplainer phase={ph.phase} title={`Your ${PHASES[ph.phase].label.toLowerCase()}`} />}
     <History days={days} ps={ps} st={st} />
     <AllPhases current={ph?.phase} />
     {c.partners?.length > 0 && <PartnerRows partners={c.partners} />}
@@ -215,7 +260,7 @@ function History({ days, ps, st }) {
       <Row title="Average cycle" value={`${st.cycle} days`} subtitle={st.known && st.min !== st.max ? `Between ${st.min} and ${st.max}` : null} />
       <Row title="Average period" value={`${st.period} day${st.period === 1 ? '' : 's'}`} />
       <Row title="Cycle regularity" value={!st.known || st.lengths.length < 3 ? 'Too early to say' : st.spread <= 2 ? 'Regular' : st.spread <= 4 ? 'Fairly regular' : 'Varies'}
-        subtitle={st.known && st.lengths.length >= 3 ? `Cycles usually within ${st.spread} day${st.spread === 1 ? '' : 's'} of the average` : null} />
+        subtitle={st.known && st.lengths.length >= 3 ? st.spread === 0 ? 'Every recent cycle was the same length' : `Cycles usually within ${st.spread} day${st.spread === 1 ? '' : 's'} of the average` : null} />
       <Row title="Ovulation, usually around" value={`Cycle day ${st.cycle - st.luteal + 1}`} />
       <Row title="Luteal phase" value={`${st.luteal} days`} subtitle={st.lutealN ? `From ${st.lutealN} ovulation${st.lutealN === 1 ? '' : 's'} you logged` : 'The usual length. Log ovulation tests to learn yours.'} />
       <Row title="Periods logged" value={String(st.count)} />

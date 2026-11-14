@@ -47,3 +47,14 @@ export function planImport(have, days) {
   for (const d of Object.keys(days)) { if (have?.[d]?.flow) kept++; else added++ }
   return { added, kept }
 }
+
+/** Your own cycle log as CSV, one row per logged day (oldest first). Temperatures in °C. */
+export function cycleCSV(days, { SYMPTOMS, MOODS, FLOW }, field) {
+  const head = ['Date', 'Flow', 'Period ended', 'Ovulation', 'LH test', 'Temperature (°C)', 'Symptoms', 'Moods', 'Note']
+  const rows = Object.keys(days || {}).filter(isDate).sort().map(d => {
+    const x = days[d]
+    return [d, x.flow ? FLOW[x.flow] : '', x.end ? 'yes' : '', x.ov ? 'yes' : '', x.lh === 'pos' ? 'positive' : x.lh === 'neg' ? 'negative' : '',
+      x.temp ?? '', (x.sym || []).map(s => SYMPTOMS[s]?.label || s).join('; '), (x.mood || []).map(m => MOODS[m] || m).join('; '), x.note || '']
+  })
+  return [head, ...rows].map(r => r.map(field).join(',')).join('\r\n') + '\r\n'
+}

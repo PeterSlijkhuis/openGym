@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { parseFlo, planImport } from './cycle-import.js'
+import { parseFlo, planImport, cycleCSV } from './cycle-import.js'
+import { SYMPTOMS, MOODS, FLOW } from './cycle.js'
+import { csvField } from './export-csv.js'
 
 const flo = cycles => JSON.stringify({ operationalData: { cycles }, other: { x: 1 } })
 
@@ -38,5 +40,13 @@ describe('flo import', () => {
   })
   it('counts what is new and what stays as logged', () => {
     expect(planImport({ '2026-08-01': { flow: 3 }, '2026-08-02': { sym: ['cramps'] } }, { '2026-08-01': { flow: 2 }, '2026-08-02': { flow: 2 }, '2026-08-03': { flow: 2 } })).toEqual({ added: 2, kept: 1 })
+  })
+  it('exports your own log as CSV with readable values, quoting what needs it', () => {
+    const csv = cycleCSV({ '2026-09-02': { flow: 3, sym: ['cramps', 'tender'], note: 'long day, "rough"' }, '2026-09-01': { flow: 2 }, '2026-09-14': { lh: 'pos', temp: 36.42, ov: 1, mood: ['low'] } }, { SYMPTOMS, MOODS, FLOW }, csvField)
+    const lines = csv.trim().split('\r\n')
+    expect(lines[0]).toBe('Date,Flow,Period ended,Ovulation,LH test,Temperature (°C),Symptoms,Moods,Note')
+    expect(lines[1]).toBe('2026-09-01,Medium,,,,,,,')
+    expect(lines[2]).toBe('2026-09-02,Heavy,,,,,Cramps; Tender breasts,,"long day, ""rough"""')
+    expect(lines[3]).toBe('2026-09-14,,,yes,positive,36.42,,Low,')
   })
 })

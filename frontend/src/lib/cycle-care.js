@@ -27,7 +27,7 @@ export const PHASE_INFO = {
     mind: 'Often curious, social and up for new things.',
   },
   ovulation: {
-    days: 'About 14 days before the next period',
+    days: 'About 13 days before the next period (10 to 16 is normal)',
     what: 'A surge of luteinising hormone releases the egg. Oestrogen peaks and testosterone rises a little. This is the most fertile time.',
     feel: 'Clear, stretchy discharge, a twinge low on one side, higher sex drive and sometimes tender breasts.',
     energy: 'Often at its highest.',
@@ -36,7 +36,7 @@ export const PHASE_INFO = {
     mind: 'Confident and talkative for many.',
   },
   luteal: {
-    days: 'From ovulation to the next period, about 14 days',
+    days: 'From ovulation to the next period, usually 11 to 16 days',
     what: 'Progesterone rises to prepare for a possible pregnancy, then both hormones fall in the last days, which can bring premenstrual symptoms.',
     feel: 'Bloating, tender breasts, cravings, breakouts, lighter sleep and mood swings, mostly in the last week.',
     energy: 'Good early on, lower in the final days.',

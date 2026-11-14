@@ -77,6 +77,9 @@ export function cleanDay(d) {
   if (mood.length) out.mood = mood
   if (d.ov) out.ov = 1
   if (d.end) out.end = 1
+  const temp = Math.round(Number(d.temp) * 100) / 100
+  if (temp >= 34 && temp <= 39) out.temp = temp   // waking temperature, always stored in °C
+  if (d.lh === 'pos' || d.lh === 'neg') out.lh = d.lh
   const note = typeof d.note === 'string' ? d.note.trim().slice(0, 1000) : ''
   if (note) out.note = note
   return Object.keys(out).length ? out : null
@@ -84,9 +87,37 @@ export function cleanDay(d) {
 
 const dates = days => Object.keys(days || {}).filter(isDate).sort()
 
-/** The first day logged as ovulation in [from, to), or null. */
+/**
+ * Ovulation in [from, to), from what was logged, best evidence first: a day marked as ovulation;
+ * else the day after the first positive LH test (ovulation usually follows the surge within
+ * 24 to 36 hours); else the day before a rise in waking temperature by the "three over six" rule
+ * (three readings above the highest of the six before, the third at least 0.2 °C above it).
+ * Returns { date, by: 'logged' | 'lh' | 'temp', cover? } or null.
+ */
+export function ovDay(days, from, to) {
+  const ds = dates(days).filter(d => d >= from && d < to)
+  const flag = ds.find(d => days[d].ov)
+  if (flag) return { date: flag, by: 'logged' }
+  const lh = ds.find(d => days[d].lh === 'pos')
+  if (lh) return { date: addDays(lh, 1), by: 'lh' }
+  const t = tempShift(days, ds)
+  return t ? { date: addDays(t.first, -1), by: 'temp', cover: t.cover } : null
+}
+
+/** The first rise in waking temperature among `ds` by the three-over-six rule: { first, cover } or null. */
+export function tempShift(days, ds) {
+  const r = ds.filter(d => days[d]?.temp).map(d => [d, days[d].temp])
+  for (let i = 6; i + 2 < r.length; i++) {
+    const cover = Math.max(...r.slice(i - 6, i).map(x => x[1]))
+    if (diffDays(r[i][0], r[i - 6][0]) > 12) continue   // the six before must be recent readings
+    if (r[i][1] > cover && r[i + 1][1] > cover && r[i + 2][1] >= cover + 0.2) return { first: r[i][0], cover }
+  }
+  return null
+}
+
+/** The ovulation day found in [from, to) (see ovDay), or null. */
 export function loggedOv(days, from, to) {
-  return dates(days).find(d => d >= from && d < to && days[d].ov) || null
+  return ovDay(days, from, to)?.date || null
 }
 
 /**
@@ -94,8 +125,8 @@ export function loggedOv(days, from, to) {
  * next period (known for a past cycle, `cycle` days on for the current one).
  */
 const ovOf = (days, start, nextStart, cycle, luteal = LUTEAL) => {
-  const logged = loggedOv(days, addDays(start, 6), nextStart || addDays(start, 60))
-  return { ov: logged || addDays(nextStart || addDays(start, cycle), -luteal), logged: !!logged }
+  const found = ovDay(days, addDays(start, 6), nextStart || addDays(start, 60))
+  return { ov: found?.date || addDays(nextStart || addDays(start, cycle), -luteal), logged: !!found, by: found?.by }
 }
 
 /** Periods from the days with flow: [{ start, end, len }], oldest first. Flow days up to 3 days apart are one period. */
@@ -215,7 +246,7 @@ export function stats(days) {
 /**
  * The next `count` periods after the last logged one (default six, about half a year), each with
  * the range it should fall in, the ovulation day with its range, and the fertile window:
- * [{ k, start, from, to, startRange: { from, to }, half, ovulation, ovLogged, ovRange, ovHalf,
+ * [{ k, start, from, to, startRange: { from, to }, half, ovulation, ovLogged, ovBy ('logged'|'lh'|'temp'), ovRange, ovHalf,
  * fertile: { from, to } }]. [] before any period is logged.
  *
  * The ranges are about 80% ranges: of past cycles with this much history, about 8 in 10 fell
@@ -243,7 +274,7 @@ export function forecast(days, today = null, count = 6) {
     return {
       k: j, start, from: start, to: addDays(start, st.period - 1),
       startRange: { from: today && late ? addDays(start, -Math.min(half, diffDays(start, today))) : addDays(start, -half), to: addDays(start, half) }, half,
-      ovulation: ov, ovLogged, ovRange: ovLogged ? null : { from: addDays(ov, -ovHalf), to: addDays(ov, ovHalf) }, ovHalf,
+      ovulation: ov, ovLogged, ovBy: ovLogged ? cur.by : null, ovRange: ovLogged ? null : { from: addDays(ov, -ovHalf), to: addDays(ov, ovHalf) }, ovHalf,
       fertile: { from: addDays(ov, -5), to: addDays(ov, 1) },
     }
   })
@@ -275,6 +306,7 @@ export function phaseOn(days, date, ps = periods(days), st = stats(days)) {
 export function kindOn(days, date, fc = forecast(days), ps = periods(days), st = stats(days)) {
   if (days?.[date]?.flow) return 'period'
   if (days?.[date]?.ov) return 'ovulation'
+  for (const f of fc) if (f.ovLogged && date === f.ovulation) return 'ovulation'
   for (const f of fc) if (date >= f.from && date <= f.to) return 'period-est'
   for (const f of fc) if (date >= f.startRange.from && date <= f.startRange.to) return 'period-range'
   for (const f of fc) if (!f.ovLogged && date === f.ovulation) return 'ovulation-est'
@@ -283,7 +315,8 @@ export function kindOn(days, date, fc = forecast(days), ps = periods(days), st =
   for (let i = 0; i + 1 < ps.length; i++) {
     if (date < ps[i].start || date >= ps[i + 1].start) continue
     const { ov, logged } = ovOf(days, ps[i].start, ps[i + 1].start, st.cycle, st.luteal)
-    if (logged || date < addDays(ov, -5) || date > addDays(ov, 1)) return null   // a logged ovulation is that cycle's answer
+    if (logged) return date === ov ? 'ovulation' : null   // a found ovulation is that cycle's answer
+    if (date < addDays(ov, -5) || date > addDays(ov, 1)) return null
     return date === ov ? 'ovulation-est' : 'fertile-est'
   }
   return null
@@ -338,5 +371,55 @@ export function sharedView(raw, today, level) {
     if (d.sym?.length) out.today.sym = d.sym
     if (d.mood?.length) out.today.mood = d.mood
   }
+  return out
+}
+
+const WINDOW = 7
+
+/**
+ * What your own history says is coming: in the week before a period (`when: 'before'`) the
+ * symptoms you logged in the 7 days before most past periods, during a period (`'during'`) those
+ * of its first 5 days. Only windows where something was logged count, so days you did not log do
+ * not water it down; a symptom shows from 2 windows and half of them. null when there is nothing
+ * to say. `toNext` is days to the expected period.
+ */
+export function upcoming(days, today, ps = periods(days), fc = forecast(days, today)) {
+  const count = (from, to) => {
+    const seen = new Set(); let any = false
+    for (let d = from; d <= to; d = addDays(d, 1)) { const x = days[d]; if (x?.sym?.length || x?.mood?.length) any = true; (x?.sym || []).forEach(s => seen.add(s)) }
+    return any ? seen : null
+  }
+  const tally = wins => {
+    const used = wins.filter(Boolean), c = {}
+    used.forEach(set => set.forEach(s => { c[s] = (c[s] || 0) + 1 }))
+    return Object.entries(c).filter(([, n]) => n >= 2 && n * 2 >= used.length).sort((a, b) => b[1] - a[1]).slice(0, 4)
+      .map(([id, n]) => ({ id, label: SYMPTOMS[id]?.label || id, n, of: used.length }))
+  }
+  const last = ps[ps.length - 1], ph = phaseOn(days, today, ps)
+  if (ph?.phase === 'menstrual' && ph.day <= 5) {
+    const list = tally(ps.filter(p => addDays(p.start, 4) < today).map(p => count(p.start, addDays(p.start, 4))))
+    return list.length ? { when: 'during', list } : null
+  }
+  const toNext = fc[0] ? diffDays(fc[0].start, today) : null
+  if (toNext == null || toNext < 0 || toNext > WINDOW || !last) return null
+  const list = tally(ps.slice(1).map(p => count(addDays(p.start, -WINDOW), addDays(p.start, -1))))
+  return list.length ? { when: 'before', toNext, list } : null
+}
+
+/**
+ * Patterns worth knowing about, as general information (not a diagnosis): [{ id, text }].
+ * Usual adult ranges are cycles of 21 to 35 days and periods of up to about 7 days.
+ */
+export function cycleSignals(days, today, ps = periods(days), st = stats(days)) {
+  const out = [], lens = st.lengths.slice(-6), last = ps[ps.length - 1]
+  const doc = ' If it keeps happening, it is worth mentioning to a doctor.'
+  if (lens.filter(n => n < 21).length >= 2) out.push({ id: 'short', text: `${lens.filter(n => n < 21).length} of your last ${lens.length} cycles were shorter than 21 days.` + doc })
+  if (lens.filter(n => n > 35).length >= 2) out.push({ id: 'long', text: `${lens.filter(n => n > 35).length} of your last ${lens.length} cycles were longer than 35 days.` + doc })
+  if (lens.length >= 4 && Math.max(...lens) - Math.min(...lens) > 9) out.push({ id: 'vary', text: `Your cycle length varies by ${Math.max(...lens) - Math.min(...lens)} days. Stress, sleep, illness, travel and hard training blocks can all do this.` + doc })
+  const longP = ps.slice(-3).filter(p => p.len > 8)
+  if (longP.length) out.push({ id: 'longPeriod', text: `A recent period lasted ${longP[longP.length - 1].len} days. Bleeding for more than about 7 days, or soaking through protection every hour or two, is worth a doctor's advice.` })
+  const ph = last && phaseOn(days, today, ps, st)
+  if (last && diffDays(today, last.start) > 90) out.push({ id: 'gap', text: 'No period logged for more than three months. If you have not just stopped logging, a missed period for this long is worth checking with a doctor.' })
+  else if (ph?.late >= 7) out.push({ id: 'late', text: `Your period is ${ph.late} days later than expected. If pregnancy is possible, a test can tell you. Stress, illness, travel and heavy training can also delay a period.` })
   return out
 }
