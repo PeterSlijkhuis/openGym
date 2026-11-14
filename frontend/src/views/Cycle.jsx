@@ -189,7 +189,8 @@ function Body({ c }) {
     <CycleCalendar today={today} weekStart={weekStartOf(S)} viewer="own" legend={['period', 'period-est', 'period-range', 'ovulation', 'ovulation-est', 'ovulation-range', 'fertile-est']}
       kind={d => kindOn(days, d, fcView, ps, st)} info={d => ownDayInfo(days, d, today)}
       logged={d => days[d] && (days[d].sym?.length || days[d].mood?.length || days[d].note)}
-      onLog={d => openSheet(() => <DaySheet date={d} />)} />
+      onLog={d => openSheet(() => <DaySheet date={d} />)}
+      onEnd={d => saveDay(d, { ...raw[d], end: raw[d]?.end ? 0 : 1 }).catch(e => useUI.getState().toast(e.message))} />
 
     <Section title={ph ? `How are you feeling? ${PHASES[ph.phase].label}` : 'How are you feeling?'}>
       <PhaseAsks date={today} day={raw[today]} />

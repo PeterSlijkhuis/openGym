@@ -35,7 +35,7 @@ function Estimate({ info }) {
 }
 
 /** The content of a day: shared by the popover and the card under the calendar. */
-export function DayCard({ info, viewer, onLog }) {
+export function DayCard({ info, viewer, onLog, onEnd }) {
   const p = info.phase && PHASES[info.phase]
   const own = viewer === 'own'
   return <div className="cy-pop-body">
@@ -64,6 +64,7 @@ export function DayCard({ info, viewer, onLog }) {
       {!own && !info.isToday && <p className="muted small">Phases other than today are estimated from the shared cycle length.</p>}
     </>}
     {own && (info.logged.sym?.length > 0 || info.logged.mood?.length > 0) && <p className="muted small">You logged: {[...(info.logged.sym || []).map(x => SYMPTOMS[x]?.label), ...(info.logged.mood || []).map(x => MOODS[x])].filter(Boolean).join(', ')}.</p>}
+    {onEnd && <Button size="sm" variant="tinted" onClick={onEnd}>{info.logged.end ? 'Period ended here (tap to undo)' : 'Period ended on this day'}</Button>}{' '}
     {onLog && <Button size="sm" variant="tinted" onClick={onLog}>Log this day</Button>}
   </div>
 }
@@ -72,7 +73,7 @@ export function DayCard({ info, viewer, onLog }) {
  * `kind(date)` colours a day, `info(date)` returns what DayCard shows (lib/cycle-day.js), `onLog`
  * (own calendar) opens the day to log it. `ahead` months can be paged to from `today`.
  */
-export default function CycleCalendar({ today, weekStart = 1, kind, info, viewer, legend, title, onLog, logged = () => false, ahead = 6, back = 24 }) {
+export default function CycleCalendar({ today, weekStart = 1, kind, info, viewer, legend, title, onLog, onEnd, logged = () => false, ahead = 6, back = 24 }) {
   const now = new Date(today + 'T00:00:00')
   const [ym, setYm] = useState([now.getFullYear(), now.getMonth()])
   const [sel, setSel] = useState(null)
@@ -116,7 +117,8 @@ export default function CycleCalendar({ today, weekStart = 1, kind, info, viewer
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const detail = sel && info(sel)
-  const card = detail && <DayCard info={detail} viewer={viewer} onLog={onLog && sel <= today ? () => { hide(true); onLog(sel) } : null} />
+  const card = detail && <DayCard info={detail} viewer={viewer} onLog={onLog && sel <= today ? () => { hide(true); onLog(sel) } : null}
+    onEnd={onEnd && sel <= today && detail.kind === 'period' ? () => { hide(true); onEnd(sel) } : null} />
   return <Section title={title}><div className="card cy-cal">
     <div className="hdr" style={{ marginBottom: 0 }}>
       <button className="iconbtn" onClick={() => go(-1)} disabled={idx - cur <= -back} aria-label="Previous month"><Icon name="chevronLeft" /></button>
