@@ -11,6 +11,7 @@ import { PHASES, SYMPTOMS, LUTEAL, diffDays, forecast, kindOn, periods, phaseOn,
 import { PHASE_INFO, PARTNER_PHASE, partnerTips } from '../lib/cycle-care.js'
 import { ownDayInfo, partnerDayInfo, partnerKind } from '../lib/cycle-day.js'
 import CycleCalendar from '../components/CycleCalendar.jsx'
+import { importFromFlo } from '../components/CycleImport.jsx'
 import { useCycle, saveDay, savePrefs, refreshCycle } from '../components/useCycle.js'
 import { DaySheet, CycleSettings, PhaseAsks } from '../components/CycleSheets.jsx'
 import Icon from '../components/Icon.jsx'
@@ -158,7 +159,8 @@ function Body({ c }) {
       {!ph && <>
         <div className="cy-phase">Welcome</div>
         <p className="muted" style={{ margin: '6px 0 12px' }}>Log the first day of your last period and openGym will start estimating your cycle. The more you log, the better it gets.</p>
-        <Button variant="primary" onClick={startToday}>Period started today</Button>
+        <Button variant="primary" onClick={startToday}>Period started today</Button>{' '}
+        <Button variant="ghost" onClick={() => importFromFlo(days)}>Import from Flo</Button>
       </>}
       {ph && <>
         <div className="cy-eyebrow">Today</div>

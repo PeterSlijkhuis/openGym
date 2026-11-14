@@ -9,6 +9,7 @@
 //
 //   GET    /api/cycle              -> { days, prefs, people, partners }
 //   PUT    /api/cycle/day          { date, flow, ov, sym, mood, note } (an empty day deletes it)
+//   POST   /api/cycle/import       { days: { date: {} } } adds period days (an import), never changes a day that has flow
 //   PUT    /api/cycle/prefs        { share: { uid: 'phase' | 'period' | 'care' }, push: { period }, tz }
 //   DELETE /api/cycle              -> removes everything of this account
 // The cron (worker.js /__wake) sends the one reminder, the day before an expected period, with a
@@ -83,6 +84,26 @@ export function makeCycle({ dataDir, fetchFn = (...a) => fetch(...a), now = () =
           } else delete rec.days[body.date];
           save(uid, rec);
           return json({ day });
+        }
+        case 'POST /api/cycle/import': {
+          // Period days from another app (lib/cycle-import.js reads the file on the device; only this
+          // list arrives). A day that already has flow stays as logged; the rest gains a flow.
+          const text = await request.text();
+          if (text.length > 400000) return json({ error: 'Too large.' }, 413);
+          let body; try { body = JSON.parse(text); } catch { return json({ error: 'Not JSON.' }, 400); }
+          const list = body?.days && typeof body.days === 'object' && !Array.isArray(body.days) ? Object.keys(body.days).filter(isDate) : [];
+          if (!list.length) return json({ error: 'No days.' }, 400);
+          const rec = load(uid);
+          let added = 0, kept = 0;
+          for (const date of list.sort()) {
+            const have = rec.days[date];
+            if (have?.flow) { kept++; continue; }
+            if (!have && Object.keys(rec.days).length >= MAX_DAYS) return json({ error: 'Too many days logged.' }, 409);
+            rec.days[date] = cleanDay({ ...have, flow: 2 });
+            added++;
+          }
+          if (added) save(uid, rec);
+          return json({ added, kept, days: rec.days });
         }
         case 'PUT /api/cycle/prefs': {
           const text = await request.text();

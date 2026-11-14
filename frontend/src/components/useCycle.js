@@ -55,3 +55,10 @@ export async function wipeCycle() {
   await api('/api/cycle', { method: 'DELETE' })
   set({ ...cache, days: {}, prefs: {} })
 }
+
+/** Adds period days read from another app's export (lib/cycle-import.js); logged flow stays. Resolves { added, kept }. */
+export async function importDays(days) {
+  const r = await send(() => api('/api/cycle/import', { method: 'POST', body: JSON.stringify({ days }) }))
+  set({ ...cache, days: r.days })
+  return { added: r.added, kept: r.kept }
+}

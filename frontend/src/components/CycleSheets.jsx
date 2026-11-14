@@ -7,6 +7,7 @@ import { FLOW, SYMPTOMS, MOODS, PHASES, PHASE_ASKS, phaseOn } from '../lib/cycle
 import { useCycle, saveDay, savePrefs, wipeCycle } from './useCycle.js'
 import { Row, Segmented, Switch, TextArea, Section } from './ui.jsx'
 import { confirmSheet } from '../sheets.jsx'
+import { importFromFlo } from './CycleImport.jsx'
 
 const toast = m => useUI.getState().toast(m)
 const fail = e => toast(e.message)
@@ -86,6 +87,9 @@ export function CycleSettings() {
         <span className="lrow-m"><span className="lrow-t">{u.name || 'Account'}</span></span>
         <Segmented value={share[u.uid] || 'off'} onChange={v => setLevel(u.uid, v)} options={LEVEL} />
       </div>)}
+    </Section>
+    <Section title="Import" footer="Flo sends a copy of your data on request: in Flo open Menu, Help, Contact us and ask for a data export. Choose the JSON file, not the TXT one. It is read on this device and only your period days are added to your own log; nothing is changed that you already logged. Symptoms and moods are not imported.">
+      <Row icon="download" iconTint="var(--pink)" title="Import from Flo" subtitle="Your own periods, from a Flo JSON export" accessory="chevron" onClick={() => importFromFlo(c.days)} />
     </Section>
     <Section title="Your data">
       <Row icon="trash" danger title="Delete all cycle data" onClick={() => confirmSheet({

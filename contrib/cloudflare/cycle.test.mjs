@@ -67,3 +67,18 @@ test('the reminder goes out once, the morning before an expected period', async 
   await svc.tick();
   assert.equal(fs.readFileSync(file, 'utf8'), after);   // and not again
 });
+
+test('an import adds period days, keeps logged flow and everything else, and stays private to the account', async () => {
+  const { dir, call } = setup();
+  await call('v', 'PUT', '/api/cycle/day', { date: '2026-08-02', flow: 3, sym: ['cramps'] });
+  await call('v', 'PUT', '/api/cycle/day', { date: '2026-08-03', sym: ['tender'], note: 'mine' });
+  const r = await call('v', 'POST', '/api/cycle/import', { days: { '2026-08-01': {}, '2026-08-02': {}, '2026-08-03': {}, 'nope': {} } });
+  assert.equal(r.status, 200);
+  assert.deepEqual([r.body.added, r.body.kept], [2, 1]);
+  assert.deepEqual(r.body.days['2026-08-02'], { flow: 3, sym: ['cramps'] });
+  assert.deepEqual(r.body.days['2026-08-03'], { flow: 2, sym: ['tender'], note: 'mine' });
+  assert.deepEqual(r.body.days['2026-08-01'], { flow: 2 });
+  assert.equal((await call('v', 'POST', '/api/cycle/import', { days: {} })).status, 400);
+  assert.deepEqual((await call('p', 'GET', '/api/cycle')).body.days, {});
+  assert.ok(!fs.readFileSync(path.join(dir, 'cycle', 'v.json'), 'utf8').includes('2026-08-01'));
+});
