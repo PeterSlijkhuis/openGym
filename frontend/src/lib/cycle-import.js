@@ -34,6 +34,7 @@ export function parseFlo(text, today) {
     if (!start || start > today || end < start || diffDays(end, start) > 13) { skipped++; continue }
     periods++
     for (let d = start; d <= end && d <= today; d = addDays(d, 1)) days[d] = { flow: 2 }
+    if (end <= today) days[end].end = 1   // Flo says when it ended, so it is not stretched to the usual length
   }
   const dates = Object.keys(days).sort()
   if (!dates.length) return { error: 'No period days found in this file.' }

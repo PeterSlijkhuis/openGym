@@ -2,8 +2,8 @@
 // and the settings (reminder, who can see what, delete). Plain English: ours, not upstream's.
 import { useEffect, useRef, useState } from 'react'
 import { useUI } from '../store/useUI.js'
-import { fmtDate } from '../lib/format.js'
-import { FLOW, SYMPTOMS, MOODS, PHASES, PHASE_ASKS, phaseOn } from '../lib/cycle.js'
+import { fmtDate, todayISO } from '../lib/format.js'
+import { FLOW, SYMPTOMS, MOODS, PHASES, PHASE_ASKS, phaseOn, withOngoing } from '../lib/cycle.js'
 import { useCycle, saveDay, savePrefs, wipeCycle } from './useCycle.js'
 import { Row, Segmented, Switch, TextArea, Section } from './ui.jsx'
 import { confirmSheet } from '../sheets.jsx'
@@ -23,7 +23,7 @@ function AskRow({ title, on, set }) {
 /** The questions a phase asks, as rows to switch on. Used on the cycle screen and in the day sheet. */
 export function PhaseAsks({ date, day }) {
   const c = useCycle()
-  const ph = phaseOn(c?.days || {}, date)
+  const ph = phaseOn(withOngoing(c?.days || {}, todayISO()), date)
   const ids = ph ? PHASE_ASKS[ph.phase] : GENERIC
   const has = day?.sym || []
   const flip = (id, v) => saveDay(date, { ...day, sym: v ? [...new Set([...has, id])] : has.filter(x => x !== id) }).catch(fail)
@@ -33,7 +33,7 @@ export function PhaseAsks({ date, day }) {
 export function DaySheet({ date }) {
   const c = useCycle()
   const day = c?.days?.[date] || {}
-  const ph = phaseOn(c?.days || {}, date)
+  const ph = phaseOn(withOngoing(c?.days || {}, todayISO()), date)
   const ids = ph ? PHASE_ASKS[ph.phase] : GENERIC
   const rest = Object.keys(SYMPTOMS).filter(id => !ids.includes(id))
   const [note, setNote] = useState(day.note || '')
@@ -53,6 +53,7 @@ export function DaySheet({ date }) {
     <p className="muted small">{ph ? `${PHASES[ph.phase].label}, day ${ph.day} (an estimate)` : 'Log the first day of a period to see your phase.'}</p>
     <div className="muted small" style={{ margin: '12px 0 6px' }}>Flow</div>
     <Segmented value={day.flow || 0} onChange={v => put({ ...day, flow: v })} options={FLOW.map((label, value) => ({ value, label }))} />
+    <Section footer="A period keeps going on its own until you say it ended, or until your usual length is up. Switch this on the last day of bleeding."><AskRow title="Period ended on this day" on={day.end} set={v => put({ ...day, end: v ? 1 : 0 })} /></Section>
     <Section footer="A positive ovulation test, or the clear signs (stretchy discharge, a twinge on one side). A logged ovulation moves the estimate of your next period."><AskRow title="Ovulation today" on={day.ov} set={v => put({ ...day, ov: v ? 1 : 0 })} /></Section>
     <Section title={ph ? `Often asked in your ${PHASES[ph.phase].label.toLowerCase()}` : 'How are you feeling?'}><PhaseAsks date={date} day={day} /></Section>
     <div className="muted small" style={{ margin: '12px 0 6px' }}>More symptoms</div>

@@ -17,7 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { deriveKey, seal, open } from '../../api/integrations/crypto.js';
-import { cleanDay, isDate, forecast, diffDays, sharedView, LEVELS } from '../../frontend/src/lib/cycle.js';
+import { cleanDay, isDate, forecast, diffDays, sharedView, withOngoing, LEVELS } from '../../frontend/src/lib/cycle.js';
 import { iso, minuteIn } from './garmin.js';
 import { sendAll } from './webpush.js';
 
@@ -99,7 +99,7 @@ export function makeCycle({ dataDir, fetchFn = (...a) => fetch(...a), now = () =
             const have = rec.days[date];
             if (have?.flow) { kept++; continue; }
             if (!have && Object.keys(rec.days).length >= MAX_DAYS) return json({ error: 'Too many days logged.' }, 409);
-            rec.days[date] = cleanDay({ ...have, flow: 2 });
+            rec.days[date] = cleanDay({ ...have, flow: 2, end: body.days[date]?.end });
             added++;
           }
           if (added) save(uid, rec);
@@ -131,7 +131,7 @@ export function makeCycle({ dataDir, fetchFn = (...a) => fetch(...a), now = () =
     for (const f of files) {
       const uid = f.slice(0, -5), rec = load(uid), tz = rec.prefs.tz;
       if (!rec.prefs.push?.period || !tz) continue;
-      const t = now(), clock = minuteIn(t, tz), today = iso(t, tz), next = forecast(rec.days)[0];
+      const t = now(), clock = minuteIn(t, tz), today = iso(t, tz), next = forecast(withOngoing(rec.days, today), today)[0];
       if (!next || clock < 540 || clock >= 720 || diffDays(next.start, today) !== 1 || rec.sent.period === next.start) continue;
       const subs = subsAll.filter(s => s.userId === uid && s.endpoint && s.keys?.p256dh && s.keys?.auth).slice(0, 5);
       if (!subs.length || !vapid?.privateKey) continue;

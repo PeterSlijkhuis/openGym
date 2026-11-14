@@ -23,7 +23,7 @@ const range = (a, b) => (a === b ? fmtDate(a) : `${fmtDate(a)} to ${fmtDate(b)}`
 /** What the forecast says about a day, in words. */
 function Estimate({ info }) {
   const f = info.f, k = info.kind
-  if (k === 'period') return <p className="cy-pop-est">Period, as you logged it.</p>
+  if (k === 'period') return <p className="cy-pop-est">{info.logged.auto ? 'Period, filled in: it runs on until you say it ended, or for your usual length.' : 'Period, as you logged it.'}</p>
   if (k === 'ovulation') return <p className="cy-pop-est">Ovulation, as you logged it.</p>
   if (!f || !k) return null
   const far = f.k >= 3 ? ' This far ahead it is a rough guide.' : ''

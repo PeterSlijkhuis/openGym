@@ -2,7 +2,7 @@
 // module on and only on a server that has cycle tracking.
 import { useNavigate } from 'react-router-dom'
 import { todayISO, fmtDate } from '../lib/format.js'
-import { PHASES, forecast, phaseOn } from '../lib/cycle.js'
+import { PHASES, forecast, phaseOn, withOngoing } from '../lib/cycle.js'
 import { partnerTips } from '../lib/cycle-care.js'
 
 const loggedToday = p => { const t = partnerTips(p.today); return t.length ? `Today: ${t.map(x => x.label).join(', ')}. Tap for ideas.` : null }
@@ -25,7 +25,8 @@ export default function CycleHomeCard({ own }) {
         open={{ onClick: () => nav('/cycle') }} action={<Icon name="chevronRight" className="chev" />} />
     </div>
   }
-  const ph = phaseOn(c.days, todayISO()), next = forecast(c.days)[0]
+  const today = todayISO(), days = withOngoing(c.days, today)
+  const ph = phaseOn(days, today), next = forecast(days, today)[0]
   return <div className="card tap-host">
     <CardHead icon="moon" tint="var(--pink)" eyebrow="Cycle" title={ph ? `${PHASES[ph.phase].label}, day ${ph.day}` : 'Start tracking your cycle'}
       sub={ph && next && ph.late === 0 ? `Next period expected ${fmtDate(next.start)}` : ph ? null : 'Log the first day of your last period'}

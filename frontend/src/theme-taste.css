@@ -207,6 +207,8 @@ p{ text-wrap:pretty }
 .cy-note{margin:12px 0 0}
 .cy-bar{display:block;height:6px;border-radius:3px;background:var(--surface-2);margin-top:6px}
 .cy-bar>span{display:block;height:100%;border-radius:3px;background:var(--pink)}
+/* A period still going: the line and buttons in the summary card. */
+.cy-open{margin:12px 0 4px;padding:10px 12px;border-radius:12px;background:var(--cy-red-pale,var(--surface-2))}
 /* The popover of a calendar day (components/CycleCalendar.jsx): one native popover, moved from day to day. */
 .cy-pop{position:fixed;inset:auto;margin:0;padding:14px 16px;width:min(340px,calc(100vw - 16px));max-height:min(72vh,560px);overflow:auto;border:0;border-radius:16px;background:var(--surface);color:var(--label);box-shadow:0 14px 44px rgba(0,0,0,.28),0 0 0 1px var(--hair,rgba(128,128,128,.18));font-size:var(--fs-subhead,15px);line-height:1.4;overscroll-behavior:contain}
 .cy-pop:not(:popover-open){display:none}

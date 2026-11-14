@@ -12,6 +12,7 @@ import { applyAdapt } from '../lib/coach-adapt.js'
 import { isWarmupRow, hasCompletedWork } from '../lib/workout-model.js'
 import { useGarmin, setGarminPrefs } from './useGarmin.js'
 import { useCycle } from './useCycle.js'
+import { withOngoing } from '../lib/cycle.js'
 import Icon from './Icon.jsx'
 import { Button } from './ui.jsx'
 
@@ -28,7 +29,8 @@ export default function ReadyAdapt() {
   const A = S.active
   const iso = A?.d || todayISO()
   // Only this account's own log, and only when it tracks its cycle. A partner's share never counts.
-  const cycleDays = isOn(S, 'cycle') && c?.days ? c.days : null
+  const own = isOn(S, 'cycle') && c?.days ? c.days : null
+  const cycleDays = useMemo(() => (own ? withOngoing(own, iso) : null), [own, iso])
   const ready = g?.prefs?.ready || {}
   const mode = ready.mode || 'auto'
   const [done, setDone] = useState(() => read(A?.id))

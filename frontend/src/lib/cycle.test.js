@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addDays, diffDays, cleanDay, periods, stats, forecast, phaseOn, kindOn, monthGrid, symptomsByPhase, sharedView } from './cycle.js'
+import { addDays, diffDays, cleanDay, periods, stats, forecast, phaseOn, kindOn, monthGrid, symptomsByPhase, sharedView, ongoing } from './cycle.js'
 
 // Periods starting 2026-07-01, 07-29, 08-26 (28 days), five flow days each.
 const flowDays = starts => Object.fromEntries(starts.flatMap(s => [0, 1, 2, 3, 4].map(i => [addDays(s, i), { flow: 2 }])))
@@ -125,5 +125,52 @@ describe('cycle', () => {
     expect(sharedView(d, '2026-09-15', 'period').today).toBe(undefined)
     expect(sharedView(days, '2026-09-15', 'everything')).toEqual({})
     expect(sharedView({}, '2026-09-15', 'phase')).toEqual({})
+  })
+
+  describe('a period that keeps going', () => {
+    const one = start => ({ [start]: { flow: 2 } })
+    it('runs on from the first day to today, within your usual length, and says it is open', () => {
+      const r = ongoing(one('2026-09-01'), '2026-09-03')
+      expect(Object.keys(r.days)).toEqual(['2026-09-01', '2026-09-02', '2026-09-03'])
+      expect(r.days['2026-09-02']).toEqual({ flow: 2, auto: 1 })
+      expect(r.open).toEqual({ start: '2026-09-01', day: 3, L: 5, endsOn: '2026-09-05' })
+      expect(phaseOn(r.days, '2026-09-03')).toMatchObject({ phase: 'menstrual', day: 3 })
+    })
+    it('stops by itself after the usual length and keeps those days', () => {
+      const r = ongoing(one('2026-09-01'), '2026-09-09')
+      expect(Object.keys(r.days).pop()).toBe('2026-09-05')
+      expect(r.open).toBe(null)
+    })
+    it('stops where you say it ended, also looking back, and ignores a later date', () => {
+      const d = { '2026-09-01': { flow: 2 }, '2026-09-03': { end: 1 } }
+      const r = ongoing(d, '2026-09-04')
+      expect(Object.keys(r.days).sort()).toEqual(['2026-09-01', '2026-09-02', '2026-09-03'])
+      expect(r.open).toBe(null)
+      expect(ongoing(d, '2026-09-02').days['2026-09-03']).toEqual({ end: 1 })
+    })
+    it('takes your usual length from the periods you closed or logged on 3 or more days', () => {
+      const past = { ...flowDays(['2026-06-01']), '2026-06-04': { flow: 2, end: 1 }, '2026-06-05': undefined }
+      delete past['2026-06-05']; delete past['2026-06-02']; delete past['2026-06-03']   // closed on day 4
+      expect(ongoing({ ...past, '2026-07-01': { flow: 2 } }, '2026-07-02').open.L).toBe(4)
+      expect(ongoing(one('2026-07-01'), '2026-07-02').open.L).toBe(5)
+    })
+    it('stretches an older period logged on 1 or 2 days to the usual length, never into the next one, but not a complete one', () => {
+      const d = { ...one('2026-08-01'), ...flowDays(['2026-08-29']), '2026-09-26': { flow: 2 }, '2026-09-27': { flow: 2 } }
+      const r = ongoing(d, '2026-10-20')
+      expect(Object.keys(r.days).filter(x => x < '2026-08-29')).toEqual(['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05'])
+      expect(Object.keys(r.days).filter(x => x >= '2026-08-29' && x < '2026-09-26')).toHaveLength(5)
+      expect(r.days['2026-09-28']).toEqual({ flow: 2, auto: 1 })   // the latest, logged twice, runs to the usual 5 days
+      expect(periods(r.days).map(p => p.len)).toEqual([5, 5, 5])
+    })
+    it('leaves cycle lengths alone and returns the same object when nothing is added', () => {
+      expect(stats(ongoing(days, '2026-09-10').days)).toMatchObject({ cycle: 28, period: 5 })
+      expect(ongoing(days, '2026-09-10').days).toBe(days)
+      expect(ongoing({}, '2026-09-10')).toEqual({ days: {}, open: null })
+    })
+    it('shares the phase from the filled days but only the flow that was logged', () => {
+      const d = { '2026-09-01': { flow: 3 } }
+      expect(sharedView(d, '2026-09-03', 'care')).toMatchObject({ phase: 'menstrual', day: 3, today: {} })
+      expect(cleanDay({ end: true })).toEqual({ end: 1 })
+    })
   })
 })

@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { fmtDate, todayISO, weekStartOf } from '../lib/format.js'
-import { PHASES, SYMPTOMS, LUTEAL, diffDays, forecast, kindOn, periods, phaseOn, stats, symptomsByPhase } from '../lib/cycle.js'
+import { PHASES, SYMPTOMS, LUTEAL, addDays, diffDays, forecast, kindOn, ongoing, periods, phaseOn, stats, symptomsByPhase } from '../lib/cycle.js'
 import { PHASE_INFO, PARTNER_PHASE, partnerTips } from '../lib/cycle-care.js'
 import { ownDayInfo, partnerDayInfo, partnerKind } from '../lib/cycle-day.js'
 import CycleCalendar from '../components/CycleCalendar.jsx'
@@ -142,7 +142,9 @@ function Forecast({ fc, st }) {
 
 function Body({ c }) {
   const S = useStore(s => s.S)
-  const days = c.days, today = todayISO()
+  const raw = c.days, today = todayISO()
+  // The period that is still going is filled in (lib/cycle.js ongoing); `raw` is what was logged.
+  const { days, open } = useMemo(() => ongoing(raw, today), [raw, today])
   const ps = useMemo(() => periods(days), [days])
   const st = useMemo(() => stats(days), [days])
   const fc = useMemo(() => forecast(days, today), [days, today])
@@ -153,7 +155,8 @@ function Body({ c }) {
   useEffect(() => { if (TZ && c.prefs.tz !== TZ) savePrefs({ tz: TZ }).catch(() => {}) }, [c.prefs.tz])
   const next = fc[0]
   const toNext = next ? diffDays(next.start, today) : 0
-  const startToday = () => saveDay(today, { ...days[today], flow: 2 }).catch(e => useUI.getState().toast(e.message))
+  const startToday = () => saveDay(today, { ...raw[today], flow: 2 }).catch(e => useUI.getState().toast(e.message))
+  const endOn = d => saveDay(d, { ...raw[d], end: 1 }).catch(e => useUI.getState().toast(e.message))
   return <>
     <div className="card cy-hero">
       {!ph && <>
@@ -173,6 +176,11 @@ function Body({ c }) {
           {next && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ' (logged)' : ''}</span><b>{fmtDate(next.ovulation)}{next.ovRange && <small>Likely {span(next.ovRange)}</small>}</b></div>}
           {next && next.fertile.to >= today && <div><span className="muted">Fertile window</span><b>{fmtDate(next.fertile.from)} to {fmtDate(next.fertile.to)}</b></div>}
         </div>
+        {open && <div className="cy-open">
+          <p style={{ margin: '0 0 8px' }}><b>Period day {open.day}.</b> {open.day < open.L ? `It goes on by itself until ${fmtDate(open.endsOn)}, or until you say it ended.` : open.day === open.L ? 'Today is your usual last day. It stops after today unless you log more flow.' : 'Still going while you log flow. Say when it ended.'}</p>
+          <Button size="sm" variant="tinted" onClick={() => endOn(today)}>Period ended today</Button>{' '}
+          {open.day > 1 && <Button size="sm" variant="ghost" onClick={() => endOn(addDays(today, -1))}>Ended yesterday</Button>}
+        </div>}
         {!days[today]?.flow && <Button size="sm" variant="tinted" onClick={startToday}>Period started today</Button>}
       </>}
       <p className="muted small cy-note">Estimates from your own logs. Not contraception and not medical advice.</p>
@@ -184,7 +192,7 @@ function Body({ c }) {
       onLog={d => openSheet(() => <DaySheet date={d} />)} />
 
     <Section title={ph ? `How are you feeling? ${PHASES[ph.phase].label}` : 'How are you feeling?'}>
-      <PhaseAsks date={today} day={days[today]} />
+      <PhaseAsks date={today} day={raw[today]} />
       <Row icon="pencil" iconTint="var(--pink)" title="Flow, mood, more symptoms and notes" accessory="chevron" onClick={() => openSheet(() => <DaySheet date={today} />)} />
     </Section>
 

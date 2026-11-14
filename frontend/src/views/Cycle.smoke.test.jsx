@@ -21,6 +21,13 @@ import CycleHomeCard from '../components/CycleHomeCard.jsx'
 import { DaySheet, CycleSettings } from '../components/CycleSheets.jsx'
 
 describe('cycle screens', () => {
+  it('keeps a period that started today going and offers to end it', () => {
+    const before = globalThis.__C
+    globalThis.__C = { ...before, days: { [addDays(today, -2)]: { flow: 2 } } }
+    const html = renderToString(<MemoryRouter><Cycle /></MemoryRouter>)
+    globalThis.__C = before
+    for (const s of ['Period day <!-- -->3', 'Period ended today', 'Ended yesterday']) expect(html).toContain(s)
+  })
   it('gives a partner an idea for each thing shared today', () => {
     const before = globalThis.__C
     globalThis.__C = { ...before, partners: [{ ...before.partners[0], level: 'care', cycle: 28, period: 5, today: { sym: ['tender'], mood: ['low'] } }] }

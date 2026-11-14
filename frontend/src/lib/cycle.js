@@ -76,6 +76,7 @@ export function cleanDay(d) {
   const mood = [...new Set([].concat(d.mood || []).filter(x => typeof x === 'string' && MOODS[x]))].slice(0, 4)
   if (mood.length) out.mood = mood
   if (d.ov) out.ov = 1
+  if (d.end) out.end = 1
   const note = typeof d.note === 'string' ? d.note.trim().slice(0, 1000) : ''
   if (note) out.note = note
   return Object.keys(out).length ? out : null
@@ -108,6 +109,54 @@ export function periods(days) {
   }
   return out
 }
+
+const CONFIRMED = 3   // a period logged on this many days is taken as complete
+
+/**
+ * A period keeps going until you say it ended, or by itself after your usual length. Only the
+ * first day (or a few) is logged, so this fills in the rest, in a copy, without writing anything:
+ *  - `end` on a day (tapped "period ended", or set in the day sheet) closes the period there;
+ *  - without it, the last period runs on to today while that is within your usual length (the
+ *    average of your periods that were closed or logged on 3 or more days, else 5), and for a
+ *    day beyond it while you keep logging flow;
+ *  - an older period logged on only 1 or 2 days and never closed is taken to have lasted your
+ *    usual length.
+ * Filled days carry `auto: 1`. Returns { days, open } with `open` = { start, day, L, endsOn } while
+ * the latest period may still be going, else null. The same object comes back when nothing is added.
+ */
+export function ongoing(days, today) {
+  const ps = periods(days)
+  if (!ps.length) return { days, open: null }
+  const marks = dates(days).filter(d => days[d].end)
+  const info = ps.map((p, i) => {
+    const next = ps[i + 1], m = marks.filter(d => d >= p.start && (!next || d < next.start)).pop() || null
+    const end = m && m > p.end ? m : p.end
+    return { p, next, closed: !!m, end, len: diffDays(end, p.start) + 1 }
+  })
+  const known = info.filter(x => (x.closed || x.p.len >= CONFIRMED) && x.len <= 10).slice(-6).map(x => x.len)
+  const L = known.length ? Math.round(sum(known) / known.length) : PERIOD
+  let out = null, open = null
+  const fill = (x, to) => {
+    const flow = days[x.p.end]?.flow || 2
+    for (let d = addDays(x.p.end, 1); d <= to && d <= today; d = addDays(d, 1)) {
+      if (days[d]?.flow) continue
+      out ||= { ...days }
+      out[d] = { ...days[d], flow, auto: 1 }
+    }
+  }
+  info.forEach((x, i) => {
+    const { p, next } = x, target = addDays(p.start, L - 1)
+    if (x.closed) return fill(x, x.end)
+    if (next) { if (p.len < CONFIRMED) fill(x, addDays(next.start, -1) < target ? addDays(next.start, -1) : target); return }
+    const until = [addDays(p.start, 13), target > addDays(p.end, 1) ? target : addDays(p.end, 1)].sort()[0]
+    if (today >= p.start && today <= until) {
+      fill(x, until)
+      open = { start: p.start, day: diffDays(today, p.start) + 1, L, endsOn: target }
+    } else if (p.len < CONFIRMED) fill(x, target)
+  })
+  return { days: out || days, open }
+}
+export const withOngoing = (days, today) => ongoing(days, today).days
 
 const sum = a => a.reduce((n, x) => n + x, 0)
 const mean = a => sum(a) / a.length
@@ -271,7 +320,8 @@ export function symptomsByPhase(days) {
 export const LEVELS = ['phase', 'period', 'care']
 
 /** What an account shows an account it shares with, at that level. */
-export function sharedView(days, today, level) {
+export function sharedView(raw, today, level) {
+  const days = withOngoing(raw, today)
   const ph = phaseOn(days, today)
   if (!ph || !LEVELS.includes(level)) return {}
   const out = { phase: ph.phase, day: ph.day }
@@ -282,7 +332,7 @@ export function sharedView(days, today, level) {
     if (next && next.start >= today) out.next = { from: next.startRange.from, to: next.startRange.to }
   }
   if (level === 'care') {
-    const d = days?.[today] || {}
+    const d = raw?.[today] || {}   // what was logged, not the days filled in
     out.today = {}
     if (d.flow) out.today.flow = d.flow
     if (d.sym?.length) out.today.sym = d.sym

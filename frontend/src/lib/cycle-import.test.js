@@ -12,6 +12,7 @@ describe('flo import', () => {
     expect(r).toMatchObject({ periods: 2, skipped: 0, from: '2026-08-01', to: '2026-09-02' })
     expect(Object.keys(r.days)).toEqual(['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-04', '2026-09-01', '2026-09-02'])
     expect(r.days['2026-08-02']).toEqual({ flow: 2 })
+    expect(r.days['2026-08-04']).toEqual({ flow: 2, end: 1 })   // Flo knows when it ended
   })
   it('skips forecasts, broken and absurdly long periods, and counts them', () => {
     const r = parseFlo(flo([
@@ -27,6 +28,7 @@ describe('flo import', () => {
   })
   it('stops a running period at today', () => {
     expect(Object.keys(parseFlo(flo([{ period_start_date: '2026-09-14', period_end_date: '2026-09-18' }]), '2026-09-15').days)).toEqual(['2026-09-14', '2026-09-15'])
+    expect(parseFlo(flo([{ period_start_date: '2026-09-14', period_end_date: '2026-09-18' }]), '2026-09-15').days['2026-09-15']).toEqual({ flow: 2 })   // not over yet
   })
   it('explains what it cannot read', () => {
     expect(parseFlo('Cycle 1: 2026-08-01', '2026-09-15').error).toMatch(/JSON/)
