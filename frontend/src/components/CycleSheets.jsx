@@ -88,7 +88,7 @@ export function DaySheet({ date }) {
   </>
 }
 
-const LEVEL = [{ value: 'off', label: 'Off' }, { value: 'phase', label: 'Phase' }, { value: 'period', label: '+ Period' }, { value: 'care', label: '+ Feelings' }]
+const LEVEL = [{ value: 'off', label: 'Off' }, { value: 'phase', label: 'Phase' }, { value: 'period', label: '+ Period' }, { value: 'care', label: 'Everything' }]
 
 export function CycleSettings() {
   const c = useCycle()
@@ -105,7 +105,7 @@ export function CycleSettings() {
     <Section title="Reminder" footer="One plain notification the morning before an expected period, with no detail on the lock screen. Sent to the devices where notifications are on in openGym's settings.">
       <AskRow title="Remind me the day before" on={p.push?.period} set={v => savePrefs({ push: { period: v } }).catch(fail)} />
     </Section>
-    <Section title="Share with" footer="Nobody sees anything until you pick them. Phase shows only your current phase and cycle day. + Period adds when your next period is expected. + Feelings also shares today's flow, symptoms and moods, so they get an idea of how to help with each one. Notes and fertile days are never shared. You can stop at any time.">
+    <Section title="Share with" footer="Nobody sees anything until you pick them. Phase shows only your current phase and cycle day. + Period adds when your next period is expected. Everything adds your calendar six months ahead with ovulation and fertile days, and today's flow, symptoms and moods, so they get an idea for each phase and for each thing you log. Notes and measurements are never shared. You can stop at any time.">
       {(c.people || []).length === 0 && <div className="lrow"><span className="lrow-m"><span className="lrow-s">No other accounts on this server yet.</span></span></div>}
       {(c.people || []).map(u => <div className="lrow" key={u.uid} style={{ flexWrap: 'wrap', gap: 8 }}>
         <span className="lrow-m"><span className="lrow-t">{u.name || 'Account'}</span></span>

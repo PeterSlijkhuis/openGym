@@ -21,14 +21,14 @@ const POP = () => typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLEle
 const range = (a, b) => (a === b ? fmtDate(a) : `${fmtDate(a)} to ${fmtDate(b)}`)
 
 /** What the forecast says about a day, in a line or two. */
-function Estimate({ info }) {
+function Estimate({ info, own }) {
   const f = info.f, k = info.kind
-  if (k === 'period') return <p className="cy-pop-est">{info.logged.auto ? 'Period, filled in: it runs on until you say it ended, or for your usual length.' : 'Period, as you logged it.'}</p>
-  if (k === 'ovulation') return <p className="cy-pop-est">Ovulation, as you {info.logged.ov ? 'logged it' : 'found it from your tests'}.</p>
+  if (k === 'period') return <p className="cy-pop-est">{info.logged.auto ? 'Period, filled in: it runs on until you say it ended, or for your usual length.' : own ? 'Period, as you logged it.' : 'Period, as logged.'}</p>
+  if (k === 'ovulation') return <p className="cy-pop-est">Ovulation, {own ? (info.logged.ov ? 'as you logged it' : 'as you found it from your tests') : 'as logged or found from tests'}.</p>
   if (!f || !k) return null
   const far = f.k >= 3 ? ' A rough guide this far ahead.' : ''
   if (k === 'period-est' || k === 'period-range') {
-    return <p className="cy-pop-est">{k === 'period-est' ? 'Expected period' : 'Your period could start today'}: most likely {fmtDate(f.start)}. In 8 of 10 cycles it starts {range(f.startRange.from, f.startRange.to)}.{far}</p>
+    return <p className="cy-pop-est">{k === 'period-est' ? 'Expected period' : own ? 'Your period could start today' : 'The period could start today'}: most likely {fmtDate(f.start)}. In 8 of 10 cycles it starts {range(f.startRange.from, f.startRange.to)}.{far}</p>
   }
   if (f.ovRange) return <p className="cy-pop-est">Ovulation is likely around {fmtDate(f.ovulation)}, in 8 of 10 cycles {range(f.ovRange.from, f.ovRange.to)}. Fertile days run up to a day after.{far}</p>
   return <p className="cy-pop-est">Ovulation was found on {fmtDate(f.ovulation)}. Fertile: the five days before and the day after.</p>
@@ -50,7 +50,7 @@ export function DayCard({ info, viewer, onLog, onEnd }) {
     </div>
     {p ? <div className="cy-pop-ph"><span className={'cy-dot cy-seg-' + info.phase} /><span>{p.label}<span className="muted"> · day {info.day}{info.projected ? ', estimated' : ''}</span></span></div>
       : <p className="muted small">Log the first day of a period to see the phase.</p>}
-    <Estimate info={info} />
+    <Estimate info={info} own={own} />
     {info.late > 0 && !info.projected && <p className="cy-pop-est">{info.late} day{info.late === 1 ? '' : 's'} past the expected start. Cycles vary, this can be normal.</p>}
     {info.info && <dl className="cy-pop-dl">
       <dt>Means</dt><dd>{first(info.info.what)}</dd>

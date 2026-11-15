@@ -347,10 +347,21 @@ export function symptomsByPhase(days) {
 /**
  * The sharing levels an account can give another account, each adding to the one before:
  * 'phase' the phase and cycle day, 'period' when the next period is expected and the usual
- * lengths, 'care' also today's flow, symptoms and moods (so a partner can help).
- * Notes and fertile days are never shared.
+ * lengths, 'care' (shown as "Everything") also today's flow, symptoms and moods and the calendar:
+ * six months of forecast with ovulation and fertile days, and the periods and ovulations behind.
+ * Notes, temperatures and tests are never shared.
  */
 export const LEVELS = ['phase', 'period', 'care']
+
+/** The ovulation of each finished cycle: [{ d, l }], `l` 1 when it was logged or found from a test. */
+export function pastOvulations(days, ps = periods(days), st = stats(days)) {
+  const out = []
+  for (let i = 0; i + 1 < ps.length; i++) {
+    const { ov, logged } = ovOf(days, ps[i].start, ps[i + 1].start, st.cycle, st.luteal)
+    out.push({ d: ov, l: logged ? 1 : 0 })
+  }
+  return out
+}
 
 /** What an account shows an account it shares with, at that level. */
 export function sharedView(raw, today, level) {
@@ -370,6 +381,12 @@ export function sharedView(raw, today, level) {
     if (d.flow) out.today.flow = d.flow
     if (d.sym?.length) out.today.sym = d.sym
     if (d.mood?.length) out.today.mood = d.mood
+    // Everything but notes and measurements: the six months ahead, the periods and ovulations
+    // behind. Worked out here at every read, so each log changes what a partner sees.
+    const ps = periods(days), st = stats(days)
+    out.fc = forecast(days, today).map(f => ({ k: f.k, s: f.start, e: f.to, r: [f.startRange.from, f.startRange.to], h: f.half, o: f.ovulation, l: f.ovLogged ? 1 : 0, or: f.ovRange ? [f.ovRange.from, f.ovRange.to] : null, f: [f.fertile.from, f.fertile.to] }))
+    out.past = ps.slice(-12).map(x => ({ s: x.start, e: addDays(x.start, x.len - 1) }))
+    out.ovs = pastOvulations(days, ps, st).slice(-12)
   }
   return out
 }

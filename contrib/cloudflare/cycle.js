@@ -5,7 +5,8 @@
 //   - never part of the synced profile, so the Coach, the MCP server and the export cannot see it;
 //   - nobody else reads it unless the owner picks that account (prefs.share: { [uid]: level }), and
 //     even then only what the level allows (lib/cycle.js sharedView): the phase, the expected next
-//     period, and at 'care' today's flow, symptoms and moods. Notes and the fertile window never.
+//     period, and at 'care' (Everything) today's flow, symptoms and moods plus the calendar with
+//     ovulation and fertile days. Notes, temperatures and tests never.
 //
 //   GET    /api/cycle              -> { days, prefs, people, partners }
 //   PUT    /api/cycle/day          { date, flow, ov, sym, mood, note } (an empty day deletes it)

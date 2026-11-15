@@ -56,6 +56,7 @@ function PartnerRows({ partners }) {
 function Partner({ p }) {
   const weekStart = weekStartOf(useStore(s => s.S))
   const today = todayISO(), info = PARTNER_PHASE[p.phase], tips = partnerTips(p.today)
+  const nextOv = p.fc?.find(f => f.f[1] >= today)
   const next = p.next && (p.next.to !== p.next.from ? `${fmtDate(p.next.from)} to ${fmtDate(p.next.to)}` : fmtDate(p.next.from))
   return <>
     <div className="card cy-hero">
@@ -64,10 +65,14 @@ function Partner({ p }) {
       <div className="muted">Cycle day {p.day}</div>
       {p.cycle && <CycleTrack cycle={p.cycle} period={p.period} day={p.day} />}
       <p style={{ margin: '10px 0 0' }}>{info.gist}</p>
-      {next && <div className="cy-facts"><div><span className="muted">Next period expected</span><b>{next}</b></div></div>}
+      {(next || nextOv) && <div className="cy-facts">
+        {next && <div><span className="muted">Next period expected</span><b>{next}</b></div>}
+        {nextOv && <div><span className="muted">Ovulation{nextOv.l ? '' : ' expected'}</span><b>{fmtDate(nextOv.o)}{nextOv.or && <small>Likely {span({ from: nextOv.or[0], to: nextOv.or[1] })}</small>}</b></div>}
+        {nextOv && <div><span className="muted">Fertile window</span><b>{fmtDate(nextOv.f[0])} to {fmtDate(nextOv.f[1])}</b></div>}
+      </div>}
     </div>
-    {p.cycle && <CycleCalendar today={today} weekStart={weekStart} title={`${p.name}'s calendar`} viewer="partner" legend={['period', 'period-est', 'period-range']}
-      kind={d => partnerKind(p, today, d)} info={d => partnerDayInfo(p, d, today)} ahead={2} back={6} />}
+    {p.cycle && <CycleCalendar today={today} weekStart={weekStart} title={`${p.name}'s calendar`} viewer="partner" legend={p.fc ? ['period', 'period-est', 'period-range', 'ovulation', 'ovulation-est', 'ovulation-range', 'fertile-est'] : ['period', 'period-est', 'period-range']}
+      kind={d => partnerKind(p, today, d)} info={d => partnerDayInfo(p, d, today)} ahead={p.fc ? 6 : 2} back={p.fc ? 12 : 6} />}
     {p.today && <Section title={`What ${p.name} logged today`} footer={tips.length ? 'Ideas, not rules. Asking what would help is always a good start.' : null}>
       {tips.length ? tips.map(t => <div className="lrow cy-tip" key={t.kind + t.id}>
         <span className="lrow-i" style={{ '--tint': t.kind === 'mood' ? 'var(--indigo)' : 'var(--pink)' }}><Icon name={t.kind === 'mood' ? 'heart' : t.kind === 'flow' ? 'dot' : 'sparkles'} /></span>
