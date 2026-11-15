@@ -20,52 +20,48 @@ const LEGEND = {
 const POP = () => typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype
 const range = (a, b) => (a === b ? fmtDate(a) : `${fmtDate(a)} to ${fmtDate(b)}`)
 
-/** What the forecast says about a day, in words. */
+/** What the forecast says about a day, in a line or two. */
 function Estimate({ info }) {
   const f = info.f, k = info.kind
   if (k === 'period') return <p className="cy-pop-est">{info.logged.auto ? 'Period, filled in: it runs on until you say it ended, or for your usual length.' : 'Period, as you logged it.'}</p>
-  if (k === 'ovulation') return <p className="cy-pop-est">Ovulation, as you logged it.</p>
+  if (k === 'ovulation') return <p className="cy-pop-est">Ovulation, as you {info.logged.ov ? 'logged it' : 'found it from your tests'}.</p>
   if (!f || !k) return null
-  const far = f.k >= 3 ? ' This far ahead it is a rough guide.' : ''
+  const far = f.k >= 3 ? ' A rough guide this far ahead.' : ''
   if (k === 'period-est' || k === 'period-range') {
-    return <p className="cy-pop-est">{k === 'period-est' ? 'Expected period' : 'Your period could start on this day'}: most likely from {fmtDate(f.start)}, and in about 8 of 10 cycles it starts between {range(f.startRange.from, f.startRange.to)} (a range of {f.half} days either side).{far}</p>
+    return <p className="cy-pop-est">{k === 'period-est' ? 'Expected period' : 'Your period could start today'}: most likely {fmtDate(f.start)}. In 8 of 10 cycles it starts {range(f.startRange.from, f.startRange.to)}.{far}</p>
   }
-  if (f.ovRange) return <p className="cy-pop-est">Ovulation is estimated around {fmtDate(f.ovulation)}, and in about 8 of 10 cycles falls between {range(f.ovRange.from, f.ovRange.to)}. The six fertile days run up to a day after it. Logging a positive ovulation test narrows this.{far}</p>
-  return <p className="cy-pop-est">Ovulation was logged on {fmtDate(f.ovulation)}. The fertile window is the five days before it and the day after.</p>
+  if (f.ovRange) return <p className="cy-pop-est">Ovulation is likely around {fmtDate(f.ovulation)}, in 8 of 10 cycles {range(f.ovRange.from, f.ovRange.to)}. Fertile days run up to a day after.{far}</p>
+  return <p className="cy-pop-est">Ovulation was found on {fmtDate(f.ovulation)}. Fertile: the five days before and the day after.</p>
 }
 
-/** The content of a day: shared by the popover and the card under the calendar. */
+const first = t => (t && (t.match(/^.*?[.!?](?=\s|$)/) || [t])[0]) || ''
+
+/** The content of a day, short enough to read without scrolling: shared by the popover and the card under the calendar. */
 export function DayCard({ info, viewer, onLog, onEnd }) {
   const p = info.phase && PHASES[info.phase]
   const own = viewer === 'own'
+  const eat = info.info && (info.foods.symptoms[0] ? { k: info.foods.symptoms[0].label, t: first(info.foods.symptoms[0].text) } : { k: info.foods.logged ? 'To eat' : 'Eat', t: info.foods.phase.slice(0, 2).map(x => x.split(':')[0].split(',')[0]).join(', ') })
+  const tip = info.tips[0] ? { k: info.tips[0].label, t: first(info.tips[0].text) } : info.ideas[0] ? { k: own ? 'Partner could' : 'Offer', t: info.ideas[0] } : null
+  const logs = own && [...(info.logged.sym || []).map(x => SYMPTOMS[x]?.label), ...(info.logged.mood || []).map(x => MOODS[x])].filter(Boolean)
   return <div className="cy-pop-body">
     <div className="cy-pop-h">
       <b>{fmtDate(info.date, true, true)}</b>
       {info.kind && <span className={'cy-tag cy-' + info.kind}>{KIND[info.kind]}</span>}
     </div>
-    {p ? <div className="cy-pop-ph"><span className={'cy-dot cy-seg-' + info.phase} /><span>{p.label}<span className="muted"> · cycle day {info.day}{info.projected ? ', estimated' : ''}</span></span></div>
+    {p ? <div className="cy-pop-ph"><span className={'cy-dot cy-seg-' + info.phase} /><span>{p.label}<span className="muted"> · day {info.day}{info.projected ? ', estimated' : ''}</span></span></div>
       : <p className="muted small">Log the first day of a period to see the phase.</p>}
     <Estimate info={info} />
     {info.late > 0 && !info.projected && <p className="cy-pop-est">{info.late} day{info.late === 1 ? '' : 's'} past the expected start. Cycles vary, this can be normal.</p>}
-    {info.info && <>
-      <h4>What this phase means</h4>
-      <p>{info.info.what}</p>
-      <p className="muted">{info.info.feel}</p>
-      <p><b>Energy:</b> {info.info.energy} <b>Training:</b> {info.info.train}</p>
-      <h4>{info.foods.logged ? 'To eat for what is logged' : 'What to eat'}</h4>
-      {info.foods.symptoms.map(x => <p key={x.id}><b>{x.label}:</b> {x.text}</p>)}
-      {!info.foods.logged && info.foods.symptoms.length > 0 && <p className="muted small">Often useful in this phase, whether or not you notice it.</p>}
-      <ul>{info.foods.phase.map(x => <li key={x}>{x}</li>)}</ul>
-      <p className="muted small">General nutrition, not treatment. Long-lasting or severe symptoms are worth a talk with a doctor.</p>
-      <h4>{own ? 'What a partner could do' : 'What you can offer'}</h4>
-      <p className="muted">{info.gist}</p>
-      {info.tips.map(t => <p key={t.kind + t.id}><b>{t.label}:</b> {t.text}</p>)}
-      <ul>{info.ideas.map(x => <li key={x}>{x}</li>)}</ul>
-      {!own && !info.isToday && <p className="muted small">Phases other than today are estimated from the shared cycle length.</p>}
-    </>}
-    {own && (info.logged.sym?.length > 0 || info.logged.mood?.length > 0) && <p className="muted small">You logged: {[...(info.logged.sym || []).map(x => SYMPTOMS[x]?.label), ...(info.logged.mood || []).map(x => MOODS[x])].filter(Boolean).join(', ')}.</p>}
-    {onEnd && <Button size="sm" variant="tinted" onClick={onEnd}>{info.logged.end ? 'Period ended here (tap to undo)' : 'Period ended on this day'}</Button>}{' '}
-    {onLog && <Button size="sm" variant="tinted" onClick={onLog}>Log this day</Button>}
+    {info.info && <dl className="cy-pop-dl">
+      <dt>Means</dt><dd>{first(info.info.what)}</dd>
+      <dt>{eat.k}</dt><dd>{eat.t}</dd>
+      {tip && <><dt>{tip.k}</dt><dd>{tip.t}</dd></>}
+    </dl>}
+    {logs?.length > 0 && <p className="muted small">You logged: {logs.join(', ')}.</p>}
+    {(onEnd || onLog) && <div className="cy-pop-btns">
+      {onEnd && <Button size="sm" variant="tinted" onClick={onEnd}>{info.logged.end ? 'Ended here (undo)' : 'Period ended'}</Button>}
+      {onLog && <Button size="sm" variant="tinted" onClick={onLog}>Log this day</Button>}
+    </div>}
   </div>
 }
 

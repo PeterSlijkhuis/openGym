@@ -184,6 +184,11 @@ p{ text-wrap:pretty }
 .cy-cal .cal-d.cy-fertile-est{background:var(--cy-blue-pale);color:var(--label);outline:2px dotted var(--cy-blue);outline:2px dotted color-mix(in srgb,var(--cy-blue) 55%,transparent);outline-offset:-2px}
 .cy-cal .cal-d.cy-period-range{background:var(--cy-red-pale);color:var(--label);outline:1.5px dotted var(--cy-red);outline:1.5px dotted color-mix(in srgb,var(--cy-red) 50%,transparent);outline-offset:-2px}
 .cy-cal .cal-d.cy-ovulation-range{background:var(--cy-blue-pale);color:var(--label);outline:1.5px dotted var(--cy-blue);outline:1.5px dotted color-mix(in srgb,var(--cy-blue) 55%,transparent);outline-offset:-2px}
+.cy-cal .cal-d{position:relative}
+.cy-cal .cal-d.cy-ovulation-est{background:var(--cy-blue-soft);background:color-mix(in srgb,var(--cy-blue) 38%,var(--surface));outline-width:2.5px}
+.cy-cal .cal-d.cy-ovulation-est::after,.cy-cal .cal-d.cy-ovulation::after{content:"";position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;box-sizing:border-box}
+.cy-cal .cal-d.cy-ovulation-est::after{border:2px solid var(--cy-blue);background:var(--surface)}
+.cy-cal .cal-d.cy-ovulation::after{background:#fff;box-shadow:0 0 0 1.5px var(--cy-blue)}
 .cy-cal .cal-d.sel{box-shadow:0 0 0 2px var(--label)}
 .cy-cal .cal-d.cy-period i.done,.cy-cal .cal-d.cy-ovulation i.done{background:#fff}
 .cy-cal .cal-d:disabled{opacity:1;cursor:default}
@@ -194,7 +199,8 @@ p{ text-wrap:pretty }
 .cy-legend i.cy-period{background:var(--cy-red)}
 .cy-legend i.cy-ovulation{background:var(--cy-blue)}
 .cy-legend i.cy-period-est{background:var(--cy-red-soft);outline:1.5px dotted var(--cy-red);outline-offset:-1.5px}
-.cy-legend i.cy-ovulation-est{background:var(--cy-blue-soft);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
+.cy-legend i.cy-ovulation-est{position:relative;background:var(--cy-blue-soft);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
+.cy-legend i.cy-ovulation-est::after{content:"";position:absolute;inset:3px;border-radius:50%;border:1.5px solid var(--cy-blue);background:var(--surface)}
 .cy-legend i.cy-period-range{background:var(--cy-red-pale);outline:1.5px dotted var(--cy-red);outline-offset:-1.5px}
 .cy-legend i.cy-ovulation-range{background:var(--cy-blue-pale);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
 .cy-legend i.cy-fertile-est{background:var(--cy-blue-pale);outline:1.5px dotted var(--cy-blue);outline-offset:-1.5px}
@@ -218,7 +224,7 @@ p{ text-wrap:pretty }
 .cy-tlab{fill:var(--label-3);font-size:10px}
 .cy-temp{max-width:90px;text-align:end;margin-inline-end:6px}
 /* The popover of a calendar day (components/CycleCalendar.jsx): one native popover, moved from day to day. */
-.cy-pop{position:fixed;inset:auto;margin:0;padding:14px 16px;width:min(340px,calc(100vw - 16px));max-height:min(72vh,560px);overflow:auto;border:0;border-radius:16px;background:var(--surface);color:var(--label);box-shadow:0 14px 44px rgba(0,0,0,.28),0 0 0 1px var(--hair,rgba(128,128,128,.18));font-size:var(--fs-subhead,15px);line-height:1.4;overscroll-behavior:contain}
+.cy-pop{position:fixed;inset:auto;margin:0;padding:12px 14px;width:min(320px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;border:0;border-radius:16px;background:var(--surface);color:var(--label);box-shadow:0 14px 44px rgba(0,0,0,.28),0 0 0 1px var(--hair,rgba(128,128,128,.18));font-size:var(--fs-subhead,15px);line-height:1.4;overscroll-behavior:contain}
 .cy-pop:not(:popover-open){display:none}
 .cy-pop-body p{margin:6px 0}
 .cy-pop-body h4{margin:14px 0 2px;font-size:var(--fs-footnote,13px);text-transform:uppercase;letter-spacing:.04em;color:var(--label-2)}
@@ -227,7 +233,12 @@ p{ text-wrap:pretty }
 .cy-pop-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .cy-pop-ph{display:flex;align-items:center;margin-top:4px;font-weight:600}
 .cy-pop-est{padding:8px 10px;border-radius:10px;background:var(--surface-2)}
-.cy-pop-body .btn{margin-top:10px}
+.cy-pop-body .btn{margin-top:0}
+.cy-pop-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.cy-pop-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:8px 0 0;font-size:var(--fs-footnote,13px);line-height:1.35}
+.cy-pop-dl dt{font-weight:650;color:var(--label-2);text-transform:uppercase;letter-spacing:.03em;font-size:11px;padding-top:2px;white-space:nowrap}
+.cy-pop-dl dd{margin:0}
+.cy-pop-est{font-size:var(--fs-footnote,13px);margin:8px 0 0}
 .cy-tag{flex:none;font-size:var(--fs-caption);padding:2px 8px;border-radius:99px;font-weight:600;background:var(--cy-red-soft);color:var(--label)}
 .cy-tag.cy-period,.cy-tag.cy-ovulation{background:var(--cy-red);color:#fff}
 .cy-tag.cy-ovulation{background:var(--cy-blue)}
