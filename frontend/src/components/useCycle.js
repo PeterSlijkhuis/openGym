@@ -56,7 +56,7 @@ export async function wipeCycle() {
   set({ ...cache, days: {}, prefs: {} })
 }
 
-/** Adds period days read from another app's export (lib/cycle-import.js); logged flow stays. Resolves { added, kept }. */
+/** Merges days read from another app's export (lib/cycle-import.js mergeDay); logged flow stays. Resolves { added, kept }. */
 export async function importDays(days) {
   const r = await send(() => api('/api/cycle/import', { method: 'POST', body: JSON.stringify({ days }) }))
   set({ ...cache, days: r.days })

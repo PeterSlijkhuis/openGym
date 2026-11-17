@@ -113,7 +113,7 @@ export function CycleSettings() {
       </div>)}
     </Section>
     <Section title="Import" footer="Flo sends a copy of your data on request: in Flo open Menu, Help, Contact us and ask for a data export. Choose the JSON file, not the TXT one. It is read on this device and only your period days are added to your own log; nothing is changed that you already logged. Symptoms and moods are not imported.">
-      <Row icon="download" iconTint="var(--pink)" title="Import from Flo" subtitle="Your own periods, from a Flo JSON export" accessory="chevron" onClick={() => importFromFlo(c.days)} />
+      <Row icon="download" iconTint="var(--pink)" title="Import from Flo" subtitle="Your periods, symptoms and moods, from a Flo JSON export" accessory="chevron" onClick={() => importFromFlo(c.days)} />
     </Section>
     <Section title="Your data">
       <Row icon="share" title="Export your cycle log (CSV)" subtitle="Every day you logged, to keep or take elsewhere" onClick={() => saveCSV(cycleCSV(c.days, { SYMPTOMS, MOODS, FLOW }, csvField), `opengym-cycle-${todayISO()}.csv`).then(() => toast('CSV exported'), () => {})} />
