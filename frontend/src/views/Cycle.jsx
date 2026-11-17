@@ -3,11 +3,11 @@
 // picks who may see its phase (components/CycleSheets.jsx). Plain English: ours, not upstream's.
 // Every date and phase is an ESTIMATE from the person's own logs: not contraception, not medical advice.
 import { useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { fmtDate, todayISO, weekStartOf } from '../lib/format.js'
-import { PHASES, SYMPTOMS, LUTEAL, addDays, diffDays, forecast, kindOn, ongoing, ovDay, periods, phaseOn, stats, symptomsByPhase, upcoming, cycleSignals } from '../lib/cycle.js'
+import { PHASES, addDays, diffDays, forecast, kindOn, ongoing, ovDay, periods, phaseOn, stats, patternsByPhase, cycleHistory, upcoming, cycleSignals } from '../lib/cycle.js'
 import { PHASE_INFO, PARTNER_PHASE, partnerTips } from '../lib/cycle-care.js'
 import { ownDayInfo, partnerDayInfo, partnerKind } from '../lib/cycle-day.js'
 import CycleCalendar from '../components/CycleCalendar.jsx'
@@ -15,7 +15,8 @@ import { importFromFlo } from '../components/CycleImport.jsx'
 import { useCycle, saveDay, savePrefs, refreshCycle } from '../components/useCycle.js'
 import { DaySheet, CycleSettings, PhaseAsks } from '../components/CycleSheets.jsx'
 import Icon from '../components/Icon.jsx'
-import { Button, Row, Section } from '../components/ui.jsx'
+import { Button, Row, Section, Segmented } from '../components/ui.jsx'
+import { CycleRing, QuickLog, Tiles, CycleLengths, Patterns } from '../components/CycleViz.jsx'
 import { isOn } from '../lib/modules.js'
 
 const openSheet = render => useUI.getState().openSheet(render)
@@ -64,9 +65,11 @@ function Partner({ p }) {
   return <>
     <div className="card cy-hero">
       <div className="cy-eyebrow">{p.name} today</div>
-      <div className="cy-phase">{PHASES[p.phase].label}</div>
-      <div className="muted">Cycle day {p.day}</div>
-      {p.cycle && <CycleTrack cycle={p.cycle} period={p.period} day={p.day} />}
+      {p.cycle && <CycleRing cycle={p.cycle} period={p.period} day={p.day} phase={p.phase}>
+        <RingMid day={p.day} toNext={p.next ? diffDays(p.next.from, today) : null} />
+      </CycleRing>}
+      <div className={'cy-phase' + (p.cycle ? ' cy-center' : '')}>{PHASES[p.phase].label}</div>
+      <div className={'muted' + (p.cycle ? ' cy-center' : '')}>Cycle day {p.day}</div>
       <p style={{ margin: '10px 0 0' }}>{info.gist}</p>
       {(next || nextOv) && <div className="cy-facts">
         {next && <div><span className="muted">Next period expected</span><b>{next}</b></div>}
@@ -89,16 +92,11 @@ function Partner({ p }) {
   </>
 }
 
-/** The cycle as a bar of its four phases, with today marked. */
-function CycleTrack({ cycle, period = 5, day, luteal = LUTEAL }) {
-  const ov = cycle + 1 - luteal
-  const parts = [['menstrual', period], ['follicular', Math.max(1, ov - 2 - period)], ['ovulation', 3], ['luteal', Math.max(1, cycle - ov - 1)]]
-  const at = Math.min(100, ((day - 0.5) / cycle) * 100)
-  return <div className="cy-track" aria-hidden="true">
-    <div className="cy-track-bar">{parts.map(([k, n]) => <span key={k} className={'cy-seg cy-seg-' + k} style={{ flexGrow: n }} />)}</div>
-    <i className="cy-track-at" style={{ insetInlineStart: at + '%' }} />
-    <div className="cy-track-l"><span>Day 1</span><span>Day {cycle}</span></div>
-  </div>
+/** The middle of the ring: how far away the next period is, or which day of it this is. */
+function RingMid({ day, toNext, late = 0, periodDay }) {
+  const [big, sub] = periodDay ? [`Day ${periodDay}`, 'of your period'] : late > 0 ? [String(late), `day${late === 1 ? '' : 's'} late`]
+    : toNext == null ? [`Day ${day}`, 'of the cycle'] : toNext <= 0 ? ['Today', 'period expected'] : [String(toNext), `day${toNext === 1 ? '' : 's'} to the next period`]
+  return <><b>{big}</b><span>{sub}</span></>
 }
 
 /** One phase explained: hormones, how it feels, energy, training, food, mind. */
@@ -191,8 +189,12 @@ function TempChart({ days, start, today, fahrenheit }) {
   </Section>
 }
 
+const TABS = [{ value: 'today', label: 'Today' }, { value: 'calendar', label: 'Calendar' }, { value: 'insights', label: 'Insights' }]
+
 function Body({ c }) {
   const S = useStore(s => s.S)
+  const [q, setQ] = useSearchParams()
+  const tab = TABS.some(t => t.value === q.get('tab')) ? q.get('tab') : 'today'
   const raw = c.days, today = todayISO()
   // The period that is still going is filled in (lib/cycle.js ongoing); `raw` is what was logged.
   const { days, open } = useMemo(() => ongoing(raw, today), [raw, today])
@@ -206,93 +208,110 @@ function Body({ c }) {
   useEffect(() => { if (TZ && c.prefs.tz !== TZ) savePrefs({ tz: TZ }).catch(() => {}) }, [c.prefs.tz])
   const next = fc[0]
   const toNext = next ? diffDays(next.start, today) : 0
-  const startToday = () => saveDay(today, { ...raw[today], flow: 2 }).catch(e => useUI.getState().toast(e.message))
-  const endOn = d => saveDay(d, { ...raw[d], end: 1 }).catch(e => useUI.getState().toast(e.message))
+  const put = (d, v) => saveDay(d, v).catch(e => useUI.getState().toast(e.message))
+  const startToday = () => put(today, { ...raw[today], flow: 2 })
+  const endOn = d => put(d, { ...raw[d], end: 1 })
   return <>
-    <div className="card cy-hero">
-      {!ph && <>
-        <div className="cy-phase">Welcome</div>
-        <p className="muted" style={{ margin: '6px 0 12px' }}>Log the first day of your last period and openGym will start estimating your cycle. The more you log, the better it gets.</p>
-        <Button variant="primary" onClick={startToday}>Period started today</Button>{' '}
-        <Button variant="ghost" onClick={() => importFromFlo(days)}>Import from Flo</Button>
-      </>}
-      {ph && <>
-        <div className="cy-eyebrow">Today</div>
-        <div className="cy-phase">{PHASES[ph.phase].label}</div>
-        <div className="muted">Cycle day {ph.day}{ph.late > 0 ? `, ${days_(ph.late)} past the expected start. Cycles vary, this can be normal.` : ''}</div>
-        <CycleTrack cycle={st.cycle} period={st.period} day={ph.day} luteal={st.luteal} />
-        <p style={{ margin: '10px 0 0' }}>{PHASES[ph.phase].tip}</p>
-        <div className="cy-facts">
-          {next && <div><span className="muted">Next period</span><b>{fmtDate(next.start)}{toNext > 0 ? ` (in ${days_(toNext)})` : ''}<small>{next.half > 0 ? `Likely ${span(next.startRange)}` : ''}</small></b></div>}
-          {next && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ` (${OV_BY[next.ovBy]})` : ''}</span><b>{fmtDate(next.ovulation)}{next.ovRange && <small>Likely {span(next.ovRange)}</small>}</b></div>}
-          {next && next.fertile.to >= today && <div><span className="muted">Fertile window</span><b>{fmtDate(next.fertile.from)} to {fmtDate(next.fertile.to)}</b></div>}
-        </div>
-        {open && <div className="cy-open">
-          <p style={{ margin: '0 0 8px' }}><b>Period day {open.day}.</b> {open.day < open.L ? `It goes on by itself until ${fmtDate(open.endsOn)}, or until you say it ended.` : open.day === open.L ? 'Today is your usual last day. It stops after today unless you log more flow.' : 'Still going while you log flow. Say when it ended.'}</p>
-          <Button size="sm" variant="tinted" onClick={() => endOn(today)}>Period ended today</Button>{' '}
-          {open.day > 1 && <Button size="sm" variant="ghost" onClick={() => endOn(addDays(today, -1))}>Ended yesterday</Button>}
-        </div>}
-        {!days[today]?.flow && <Button size="sm" variant="tinted" onClick={startToday}>Period started today</Button>}
-      </>}
-      <p className="muted small cy-note">Estimates from your own logs. Not contraception and not medical advice.</p>
-    </div>
+    {ph && <Segmented className="cy-tabs" options={TABS} value={tab} onChange={v => setQ(v === 'today' ? {} : { tab: v }, { replace: true })} />}
 
-    <CycleCalendar today={today} weekStart={weekStartOf(S)} viewer="own" legend={['period', 'period-est', 'period-range', 'ovulation', 'ovulation-est', 'ovulation-range', 'fertile-est']}
-      kind={d => kindOn(days, d, fcView, ps, st)} info={d => ownDayInfo(days, d, today)}
-      logged={d => days[d] && (days[d].sym?.length || days[d].mood?.length || days[d].note)}
-      back={Math.max(24, monthsBack(raw, today))}
-      onLog={d => openSheet(() => <DaySheet date={d} />)}
-      onEnd={d => saveDay(d, { ...raw[d], end: raw[d]?.end ? 0 : 1 }).catch(e => useUI.getState().toast(e.message))} />
+    {tab === 'today' && <>
+      <div className="card cy-hero">
+        {!ph && <>
+          <div className="cy-phase">Welcome</div>
+          <p className="muted" style={{ margin: '6px 0 12px' }}>Log the first day of your last period and openGym will start estimating your cycle. The more you log, the better it gets.</p>
+          <Button variant="primary" onClick={startToday}>Period started today</Button>{' '}
+          <Button variant="ghost" onClick={() => importFromFlo(days)}>Import from Flo</Button>
+        </>}
+        {ph && <>
+          <CycleRing cycle={st.cycle} period={st.period} day={ph.day} luteal={st.luteal} phase={ph.phase}>
+            <RingMid day={ph.day} toNext={next ? toNext : null} late={ph.late} periodDay={open?.day} />
+          </CycleRing>
+          <div className="cy-phase cy-center">{PHASES[ph.phase].label}</div>
+          <div className="muted cy-center">Cycle day {ph.day}{ph.late > 0 ? `, ${days_(ph.late)} past the expected start. Cycles vary, this can be normal.` : ''}</div>
+          <p className="cy-center" style={{ margin: '8px 0 0' }}>{PHASES[ph.phase].tip}</p>
+          <div className="cy-facts">
+            {next && <div><span className="muted">Next period</span><b>{fmtDate(next.start)}{toNext > 0 ? ` (in ${days_(toNext)})` : ''}<small>{next.half > 0 ? `Likely ${span(next.startRange)}` : ''}</small></b></div>}
+            {next && next.ovulation >= today && <div><span className="muted">Ovulation{next.ovLogged ? ` (${OV_BY[next.ovBy]})` : ''}</span><b>{fmtDate(next.ovulation)}{next.ovRange && <small>Likely {span(next.ovRange)}</small>}</b></div>}
+            {next && next.fertile.to >= today && <div><span className="muted">Fertile window</span><b>{fmtDate(next.fertile.from)} to {fmtDate(next.fertile.to)}</b></div>}
+          </div>
+          {open && <div className="cy-open">
+            <p style={{ margin: '0 0 8px' }}><b>Period day {open.day}.</b> {open.day < open.L ? `It goes on by itself until ${fmtDate(open.endsOn)}, or until you say it ended.` : open.day === open.L ? 'Today is your usual last day. It stops after today unless you log more flow.' : 'Still going while you log flow. Say when it ended.'}</p>
+            <Button size="sm" variant="tinted" onClick={() => endOn(today)}>Period ended today</Button>{' '}
+            {open.day > 1 && <Button size="sm" variant="ghost" onClick={() => endOn(addDays(today, -1))}>Ended yesterday</Button>}
+          </div>}
+          {!days[today]?.flow && <Button size="sm" variant="tinted" onClick={startToday}>Period started today</Button>}
+        </>}
+        <p className="muted small cy-note">Estimates from your own logs. Not contraception and not medical advice.</p>
+      </div>
 
-    <Section title={ph ? `How are you feeling? ${PHASES[ph.phase].label}` : 'How are you feeling?'}>
-      <PhaseAsks date={today} day={raw[today]} />
-      <Row icon="pencil" iconTint="var(--pink)" title="Flow, mood, more symptoms and notes" accessory="chevron" onClick={() => openSheet(() => <DaySheet date={today} />)} />
-    </Section>
+      <Section title={ph ? `How are you feeling? ${PHASES[ph.phase].label}` : 'How are you feeling?'}>
+        <QuickLog day={raw[today]} put={v => put(today, v)} />
+        <PhaseAsks date={today} day={raw[today]} />
+        <Row icon="pencil" iconTint="var(--pink)" title="More symptoms, fertility signs and notes" accessory="chevron" onClick={() => openSheet(() => <DaySheet date={today} />)} />
+      </Section>
 
-    <ComingUp up={upcoming(days, today, ps, fc)} />
-    <Signals list={cycleSignals(days, today, ps, st)} />
-    {ps.length > 0 && <TempChart days={days} start={ps[ps.length - 1].start} today={today} fahrenheit={S.unit === 'lb'} />}
-    {fc.length > 0 && <Forecast fc={fc} st={st} />}
-    <History days={days} ps={ps} st={st} />
-    <AllPhases current={ph?.phase} />
-    {c.partners?.length > 0 && <PartnerRows partners={c.partners} />}
+      <ComingUp up={upcoming(days, today, ps, fc)} />
+      <Signals list={cycleSignals(days, today, ps, st)} />
+      {ph && <PhaseExplainer phase={ph.phase} title={`Your ${PHASES[ph.phase].label.toLowerCase()}`} />}
+      {c.partners?.length > 0 && <PartnerRows partners={c.partners} />}
+    </>}
+
+    {tab === 'calendar' && <>
+      <CycleCalendar today={today} weekStart={weekStartOf(S)} viewer="own" legend={['period', 'period-est', 'period-range', 'ovulation', 'ovulation-est', 'ovulation-range', 'fertile-est']}
+        kind={d => kindOn(days, d, fcView, ps, st)} info={d => ownDayInfo(days, d, today)}
+        logged={d => days[d] && (days[d].sym?.length || days[d].mood?.length || days[d].note)}
+        back={Math.max(24, monthsBack(raw, today))}
+        onLog={d => openSheet(() => <DaySheet date={d} />)}
+        onEnd={d => put(d, { ...raw[d], end: raw[d]?.end ? 0 : 1 })} />
+      {fc.length > 0 && <Forecast fc={fc} st={st} />}
+    </>}
+
+    {tab === 'insights' && <>
+      <History days={days} ps={ps} st={st} />
+      {ps.length > 0 && <TempChart days={days} start={ps[ps.length - 1].start} today={today} fahrenheit={S.unit === 'lb'} />}
+      <AllPhases current={ph?.phase} />
+    </>}
   </>
 }
 
+const regularity = st => (!st.known || st.lengths.length < 3 ? 'Too early' : st.spread <= 2 ? 'Regular' : st.spread <= 4 ? 'Fairly regular' : 'Varies')
+const trendText = t => (Math.abs(t) < 1 ? 'About the same as the year before' : `${Math.abs(t)} day${Math.abs(t) === 1 ? '' : 's'} ${t > 0 ? 'longer' : 'shorter'} than the year before`)
+
 function History({ days, ps, st }) {
-  const by = useMemo(() => symptomsByPhase(days), [days])
-  if (!ps.length) return null
-  const lens = st.lengths.slice(-6)
-  const top = Math.max(...lens, st.cycle)
+  const by = useMemo(() => patternsByPhase(days, ps, st), [days, ps, st])
+  const h = useMemo(() => cycleHistory(ps), [ps])
+  if (!ps.length) return <div className="card"><p className="muted" style={{ margin: 0 }}>Log a period, or import your Flo history, to see your averages and patterns here.</p></div>
+  const rev = [...ps].reverse()
+  const row = (p, i) => <Row key={p.start} title={fmtDate(p.start, true)} subtitle={`${p.len} day${p.len === 1 ? '' : 's'} of bleeding`}
+    value={i === 0 ? 'Latest' : `${diffDays(rev[i - 1].start, p.start)}-day cycle`} />
   return <>
-    <Section title="Your averages" footer={st.known ? 'From your last six cycles. Cycles of fewer than 15 or more than 60 days are left out.' : 'Until two periods are logged, the usual 28-day cycle and 5-day period are used.'}>
-      <Row title="Average cycle" value={`${st.cycle} days`} subtitle={st.known && st.min !== st.max ? `Between ${st.min} and ${st.max}` : null} />
-      <Row title="Average period" value={`${st.period} day${st.period === 1 ? '' : 's'}`} />
-      <Row title="Cycle regularity" value={!st.known || st.lengths.length < 3 ? 'Too early to say' : st.spread <= 2 ? 'Regular' : st.spread <= 4 ? 'Fairly regular' : 'Varies'}
-        subtitle={st.known && st.lengths.length >= 3 ? st.spread === 0 ? 'Every recent cycle was the same length' : `Cycles usually within ${st.spread} day${st.spread === 1 ? '' : 's'} of the average` : null} />
+    <Section title="Your averages" footer={st.known ? 'From your last cycles, unusual ones left out. Cycles of fewer than 15 or more than 60 days are not counted.' : 'Until two periods are logged, the usual 28-day cycle and 5-day period are used.'}>
+      <Tiles items={[
+        ['Average cycle', `${st.cycle} days`, st.known && st.min !== st.max ? `${st.min} to ${st.max}` : null],
+        ['Average period', `${st.period} day${st.period === 1 ? '' : 's'}`, null],
+        ['Regularity', regularity(st), st.known && st.lengths.length >= 3 ? `Within ${days_(st.spread)}` : null],
+        ['Periods logged', String(st.count), h ? `Since ${fmtDate(ps[0].start, true)}` : null],
+      ]} />
       <Row title="Ovulation, usually around" value={`Cycle day ${st.cycle - st.luteal + 1}`} />
       <Row title="Luteal phase" value={`${st.luteal} days`} subtitle={st.lutealN ? `From ${st.lutealN} ovulation${st.lutealN === 1 ? '' : 's'} you logged` : 'The usual length. Log ovulation tests to learn yours.'} />
-      <Row title="Periods logged" value={String(st.count)} />
     </Section>
+    {h && h.list.length >= 3 && <Section title="Every cycle" footer={`Each bar is one cycle. The band is your usual range, where 8 in 10 of your cycles land; orange bars fall outside it.${h.trend != null ? ' The trend compares the median of your last 12 cycles with the 12 before.' : ''}`}>
+      <CycleLengths h={h} />
+      <Tiles items={[
+        ['Usual range', `${h.band[0]} to ${h.band[1]} days`, null],
+        ['Shortest, longest', `${h.shortest} and ${h.longest} days`, null],
+        ...(h.trend != null ? [['Trend', h.trend === 0 ? 'Steady' : `${h.trend > 0 ? '+' : ''}${h.trend} days`, trendText(h.trend)]] : []),
+      ]} />
+    </Section>}
+    {Object.keys(by).length > 0 && <Section title="What you log, by phase" footer="How often each thing came up on the days you logged anything in that phase, from your whole history.">
+      <Patterns by={by} />
+    </Section>}
     <Section title="Period history">
-      {ps.slice(-12).reverse().map((p, i, a) => {
-        const nextStart = i === 0 ? null : a[i - 1].start
-        return <Row key={p.start} title={fmtDate(p.start, true)} subtitle={`${p.len} day${p.len === 1 ? '' : 's'} of bleeding`}
-          value={nextStart ? `${diffDays(nextStart, p.start)}-day cycle` : 'Latest'} />
-      })}
+      {rev.slice(0, 12).map(row)}
+      {rev.length > 12 && <details className="cy-more">
+        <summary className="lrow tap"><span className="lrow-m"><span className="lrow-t">All {rev.length} periods</span></span><Icon name="chevronDown" className="lrow-c" /></summary>
+        {rev.slice(12).map((p, i) => row(p, i + 12))}
+      </details>}
     </Section>
-    {lens.length > 0 && <Section title="Recent cycles">
-      {lens.map((n, i) => {
-        const p = ps[ps.length - lens.length - 1 + i]
-        return <div className="lrow" key={i}>
-          <span className="lrow-m"><span className="lrow-t">{fmtDate(p.start)}</span>
-            <span className="cy-bar"><span style={{ width: `${(n / top) * 100}%` }} /></span></span>
-          <span className="lrow-v">{n} days</span>
-        </div>
-      })}
-    </Section>}
-    {Object.keys(by).length > 0 && <Section title="What you log most, by phase">
-      {Object.entries(by).map(([phase, list]) => <Row key={phase} title={PHASES[phase].label} subtitle={list.map(([id, n]) => `${SYMPTOMS[id].label} (${n})`).join(', ')} />)}
-    </Section>}
   </>
 }

@@ -331,17 +331,44 @@ export function monthGrid(year, month, weekStart = 1) {
   return Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(w * 7, w * 7 + 7))
 }
 
-/** Per phase, the symptoms logged most often: { luteal: [['tender', 4], ...], ... } (top 3). */
-export function symptomsByPhase(days) {
-  const ps = periods(days), st = stats(days), count = {}
+/**
+ * What gets logged in each phase, as a share of the days anything was logged in it, moods included:
+ * { phase: { days, top: [{ id, kind: 'sym' | 'mood', label, n, pct }] } }, the five most common first.
+ */
+export function patternsByPhase(days, ps = periods(days), st = stats(days)) {
+  const out = {}
   for (const date of dates(days)) {
-    const sym = days[date]?.sym
-    const ph = sym?.length && phaseOn(days, date, ps, st)
+    const d = days[date], tags = [...(d?.sym || []).map(id => ['sym', id]), ...(d?.mood || []).map(id => ['mood', id])]
+    const ph = tags.length && phaseOn(days, date, ps, st)
     if (!ph) continue
-    const c = (count[ph.phase] ||= {})
-    for (const s of sym) c[s] = (c[s] || 0) + 1
+    const o = (out[ph.phase] ||= { days: 0, c: {} })
+    o.days++
+    for (const [kind, id] of tags) o.c[kind + ':' + id] = (o.c[kind + ':' + id] || 0) + 1
   }
-  return Object.fromEntries(Object.entries(count).map(([p, c]) => [p, Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3)]))
+  return Object.fromEntries(Object.entries(out).map(([p, o]) => [p, {
+    days: o.days,
+    top: Object.entries(o.c).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([key, n]) => {
+      const [kind, id] = key.split(':')
+      return { id, kind, label: kind === 'sym' ? SYMPTOMS[id]?.label || id : MOODS[id] || id, n, pct: Math.round((n / o.days) * 100) }
+    }),
+  }]))
+}
+
+/**
+ * Every cycle in the log (15 to 60 days), its usual range (the middle 8 in 10) and the trend:
+ * how many days the median of the last 12 cycles differs from the 12 before (null until both exist).
+ */
+export function cycleHistory(ps) {
+  const list = ps.slice(1).map((p, i) => ({ start: ps[i].start, len: diffDays(p.start, ps[i].start), period: ps[i].len }))
+    .filter(c => c.len >= 15 && c.len <= 60)
+  if (!list.length) return null
+  const s = list.map(c => c.len).sort((x, y) => x - y), n = s.length
+  const recent = list.slice(-12).map(c => c.len), before = list.slice(-24, -12).map(c => c.len)
+  return {
+    list, shortest: s[0], longest: s[n - 1], median: median(s),
+    band: [s[Math.floor(n * 0.1)], s[Math.max(0, Math.ceil(n * 0.9) - 1)]],
+    trend: recent.length >= 6 && before.length >= 6 ? median(recent) - median(before) : null,
+  }
 }
 
 /**

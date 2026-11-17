@@ -42,9 +42,15 @@ describe('cycle screens', () => {
     for (const s of ['Shared with you', 'Val<!-- --> today', 'Luteal phase', 'Cycle day <!-- -->20', 'Ideas for the luteal phase', 'Val: Luteal phase, day 20', 'switch on Cycle tracking']) expect(html).toContain(s)
     for (const s of ['Period started today', 'Your averages', 'aria-label="Cycle settings"']) expect(html).not.toContain(s)
   })
-  it('renders the screen, the questions of the phase, averages and what is shared', () => {
-    const html = renderToString(<MemoryRouter><Cycle /><CycleHomeCard own /></MemoryRouter>)
-    for (const s of ['Follicular phase', 'Felt strong in training?', 'Not contraception', 'Your averages', '28 days', 'Val<!-- --> today', 'Expected ovulation', 'Ovulation range', 'Coming months', 'How sure is this?', 'Period history', 'The four phases', 'a day to see what it means']) expect(html).toContain(s)
+  it('renders each tab: today with the ring and one-tap logging, the calendar, insights', () => {
+    const at = tab => renderToString(<MemoryRouter initialEntries={[tab ? `/cycle?tab=${tab}` : '/cycle']}><Cycle /><CycleHomeCard own /></MemoryRouter>)
+    const html = at()
+    for (const s of ['Follicular phase', 'cy-ring', 'to the next period', 'Medium', 'Anxious', 'Felt strong in training?', 'Not contraception', 'Val<!-- --> today']) expect(html).toContain(s)
+    for (const s of ['Your averages', 'Coming months']) expect(html).not.toContain(s)
+    const cal = at('calendar')
+    for (const s of ['Expected ovulation', 'Ovulation range', 'Coming months', 'How sure is this?', 'a day to see what it means']) expect(cal).toContain(s)
+    const ins = at('insights')
+    for (const s of ['Your averages', '28 days', 'Period history', 'What you log, by phase', 'Tender breasts', 'The four phases']) expect(ins).toContain(s)
   })
   it('the day sheet asks the phase questions and offers the rest', () => {
     const html = renderToString(<DaySheet date={today} />)

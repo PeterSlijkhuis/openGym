@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addDays, diffDays, cleanDay, periods, stats, forecast, phaseOn, kindOn, monthGrid, symptomsByPhase, sharedView, ongoing } from './cycle.js'
+import { addDays, diffDays, cleanDay, periods, stats, forecast, phaseOn, kindOn, monthGrid, patternsByPhase, cycleHistory, sharedView, ongoing } from './cycle.js'
 
 // Periods starting 2026-07-01, 07-29, 08-26 (28 days), five flow days each.
 const flowDays = starts => Object.fromEntries(starts.flatMap(s => [0, 1, 2, 3, 4].map(i => [addDays(s, i), { flow: 2 }])))
@@ -111,11 +111,24 @@ describe('cycle', () => {
     expect(g.every(w => w.length === 7)).toBe(true)
     expect(g.flat().filter(Boolean)).toHaveLength(30)
   })
-  it('counts the symptoms of each phase', () => {
-    const d = { ...days, '2026-09-15': { sym: ['tender', 'bloating'] }, '2026-09-16': { sym: ['tender'] }, '2026-08-27': { sym: ['cramps'] } }
-    const by = symptomsByPhase(d)
-    expect(by.luteal[0]).toEqual(['tender', 2])
-    expect(by.menstrual).toEqual([['cramps', 1]])
+  it('counts what is logged in each phase as a share of its logged days, moods too', () => {
+    const d = { ...days, '2026-09-15': { sym: ['tender', 'bloating'] }, '2026-09-16': { sym: ['tender'], mood: ['low'] }, '2026-08-27': { sym: ['cramps'] } }
+    const by = patternsByPhase(d)
+    expect(by.luteal.days).toBe(2)
+    expect(by.luteal.top[0]).toEqual({ id: 'tender', kind: 'sym', label: 'Tender breasts', n: 2, pct: 100 })
+    expect(by.luteal.top.find(x => x.kind === 'mood')).toMatchObject({ id: 'low', label: 'Low', pct: 50 })
+    expect(by.menstrual.top).toEqual([{ id: 'cramps', kind: 'sym', label: 'Cramps', n: 1, pct: 100 }])
+  })
+  it('lists every cycle with its usual range and the trend between the last two years', () => {
+    expect(cycleHistory(periods(flowDays(['2026-07-01'])))).toBe(null)
+    const starts = []; let at = '2024-01-01'
+    for (let i = 0; i < 25; i++) { starts.push(at); at = addDays(at, i < 12 ? 27 : 30) }
+    const h = cycleHistory(periods(flowDays(starts)))
+    expect(h.list).toHaveLength(24)
+    expect(h.list[0]).toEqual({ start: '2024-01-01', len: 27, period: 5 })
+    expect([h.shortest, h.longest, h.trend]).toEqual([27, 30, 3])
+    expect(h.band).toEqual([27, 30])
+    expect(cycleHistory(periods(flowDays(['2026-07-01', '2026-08-31', '2026-09-28']))).list).toEqual([{ start: '2026-08-31', len: 28, period: 5 }])
   })
   it('shares only what the level allows', () => {
     expect(sharedView(days, '2026-09-15', 'phase')).toEqual({ phase: 'luteal', day: 21 })

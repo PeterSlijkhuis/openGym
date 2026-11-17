@@ -112,7 +112,7 @@ export function CycleSettings() {
         <Segmented value={share[u.uid] || 'off'} onChange={v => setLevel(u.uid, v)} options={LEVEL} />
       </div>)}
     </Section>
-    <Section title="Import" footer="Flo sends a copy of your data on request: in Flo open Menu, Help, Contact us and ask for a data export. Choose the JSON file, not the TXT one. It is read on this device and only your period days are added to your own log; nothing is changed that you already logged. Symptoms and moods are not imported.">
+    <Section title="Import" footer="Flo sends a copy of your data on request: in Flo open Menu, Help, Contact us and ask for a data export. Choose the JSON file, not the TXT one. It is read on this device and your periods, flow, symptoms and moods are added to your own log; nothing you already logged is changed. Notes, sleep, weight and anything else in the file are left out.">
       <Row icon="download" iconTint="var(--pink)" title="Import from Flo" subtitle="Your periods, symptoms and moods, from a Flo JSON export" accessory="chevron" onClick={() => importFromFlo(c.days)} />
     </Section>
     <Section title="Your data">

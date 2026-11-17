@@ -294,3 +294,66 @@ p{ text-wrap:pretty }
 .ra-why li.good::marker{color:var(--teal)}
 .ra-why li.learnt{color:var(--label-2,var(--label));list-style:'≈  '}
 .ra-acts{display:flex;gap:8px;margin-top:10px}
+
+/* Cycle screen polish (components/CycleViz.jsx): tabs, the phase ring, one-tap logging, insights. */
+.cy-tabs{margin:0 0 14px}
+.cy-center{text-align:center}
+.cy-hero{position:relative;overflow:hidden}
+.cy-hero:has(.cy-ring)::before{content:"";position:absolute;inset:-40% -20% auto;height:80%;background:radial-gradient(closest-side,var(--cy-glow,transparent),transparent);opacity:.35;pointer-events:none}
+.cy-ring{--cy-glow:#f26b6f;position:relative;width:min(240px,72vw);margin:6px auto 10px}
+.cy-ring-follicular{--cy-glow:#f6c3a6}.cy-ring-ovulation{--cy-glow:#5aa2f0}.cy-ring-luteal{--cy-glow:#b9a6e8}
+.cy-hero:has(.cy-ring-follicular){--cy-glow:#f6c3a6}.cy-hero:has(.cy-ring-ovulation){--cy-glow:#5aa2f0}.cy-hero:has(.cy-ring-luteal){--cy-glow:#b9a6e8}.cy-hero:has(.cy-ring-menstrual){--cy-glow:#f26b6f}
+.cy-ring svg{display:block;width:100%;height:auto;overflow:visible}
+.cy-ring-track{fill:none;stroke:var(--surface-2);stroke-width:18}
+.cy-arc{fill:none;stroke-width:18;stroke-linecap:butt}
+.cy-arc-menstrual{stroke:#f26b6f}.cy-arc-follicular{stroke:#f6c3a6}.cy-arc-ovulation{stroke:#5aa2f0}.cy-arc-luteal{stroke:#b9a6e8}
+.cy-ring-arcs{transform-origin:110px 110px;animation:cy-ring-in .9s cubic-bezier(.2,.8,.2,1) both}
+.cy-ring-at{fill:var(--surface);stroke:var(--label);stroke-width:4;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));animation:cy-at-in .5s .6s both}
+.cy-ring-mid{position:absolute;inset:22%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2px}
+.cy-ring-mid span{font-size:var(--fs-footnote,13px);color:var(--label-2);line-height:1.25}
+.cy-ring-mid b{font-size:44px;line-height:1.05;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+@keyframes cy-ring-in{from{transform:rotate(-120deg) scale(.82);opacity:0}}
+@keyframes cy-at-in{from{opacity:0;transform:scale(.4)}}
+.cy-ring-at{transform-box:fill-box;transform-origin:center}
+@media (prefers-reduced-motion:reduce){.cy-ring-arcs,.cy-ring-at,.cy-lens-bar{animation:none}}
+
+.cy-quick{padding:12px 16px 4px}
+.cy-quick-l{font-size:var(--fs-footnote,13px);color:var(--label-2);margin:0 0 6px}
+.cy-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.cy-flow-b,.cy-mood{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:0;border-radius:12px;background:var(--surface-2);color:var(--label);font:inherit;font-size:var(--fs-footnote,13px);cursor:pointer;transition:transform .15s,background-color .15s}
+.cy-flow-b:active,.cy-mood:active{transform:scale(.94)}
+.cy-flow-b.on{background:#f26b6f;color:#fff}
+.cy-drops{display:flex;gap:2px;height:12px;align-items:flex-end}
+.cy-drops i{width:7px;height:10px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;background:currentColor;opacity:.2}
+.cy-drops-1 i:nth-child(-n+1),.cy-drops-2 i:nth-child(-n+2),.cy-drops-3 i{opacity:1}
+.cy-flow-b:not(.on) .cy-drops i{background:#f26b6f}
+.cy-moods{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.cy-mood .glyph{font-size:22px;line-height:1;color:var(--indigo)}
+.cy-mood.on{background:var(--surface-2);background:color-mix(in srgb,var(--indigo) 22%,var(--surface-2));box-shadow:inset 0 0 0 2px var(--indigo)}
+
+.cy-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;padding:12px}
+.cy-tile{display:flex;flex-direction:column;gap:2px;padding:12px;border-radius:14px;background:var(--surface-2)}
+.cy-tile span{font-size:var(--fs-caption,12px);color:var(--label-2);text-transform:uppercase;letter-spacing:.04em}
+.cy-tile b{font-size:var(--fs-title3,20px);font-weight:650;letter-spacing:-.02em}
+.cy-tile small{font-size:var(--fs-caption,12px);color:var(--label-2)}
+
+.cy-lens{padding:10px 8px;margin-bottom:0}
+.cy-lens svg{display:block;width:100%;height:auto}
+.cy-lens-band{fill:#f26b6f;opacity:.12}
+.cy-lens-bar{fill:#f26b6f;transform-box:fill-box;transform-origin:bottom;animation:cy-grow .6s calc(var(--i,0) * 12ms) cubic-bezier(.2,.8,.2,1) both}
+.cy-lens-bar.off{fill:var(--orange)}
+.cy-lens-med{stroke:var(--label-2);stroke-width:1;stroke-dasharray:3 3}
+@keyframes cy-grow{from{transform:scaleY(0)}}
+
+.cy-pat{padding:4px 16px 12px}
+.cy-pat-ph{padding-top:12px}
+.cy-pat-h{display:flex;align-items:center;gap:0;margin-bottom:6px}
+.cy-pat-h b{margin-inline-end:auto}
+.cy-pat-r{display:grid;grid-template-columns:minmax(0,9em) 1fr 3em;align-items:center;gap:10px;font-size:var(--fs-footnote,13px);padding:3px 0}
+.cy-pat-r>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cy-pat-r .cy-bar{margin:0;height:8px;border-radius:4px}
+.cy-pat-r .cy-bar>span{border-radius:4px}
+.cy-pat-r>span:last-child{text-align:end;font-variant-numeric:tabular-nums}
+.cy-ph-menstrual{--ph:#f26b6f}.cy-ph-follicular{--ph:#f0a77f}.cy-ph-ovulation{--ph:#5aa2f0}.cy-ph-luteal{--ph:#9d86e0}
+.cy-pat .cy-bar>span{background:var(--ph,var(--pink))}
+.cy-flow-b.on:first-child{background:var(--label-3);color:var(--surface)}
