@@ -1,5 +1,5 @@
 // Import your own cycle from a Flo data export (JSON): pick the file, see what it holds, confirm.
-// The file is read on this device; only the list of period days is sent, to your own log.
+// The file is read on this device; only the days (flow, symptoms, moods) are sent, to your own log.
 // Plain English: ours, not upstream's.
 import { useUI } from '../store/useUI.js'
 import { fmtDate, todayISO } from '../lib/format.js'
@@ -24,9 +24,9 @@ export function importFromFlo(have) {
     if (!added) return toast('Everything in this file is already in your log.')
     confirmSheet({
       title: 'Import from Flo?',
-      message: `Found ${r.periods} period${r.periods === 1 ? '' : 's'} from ${fmtDate(r.from, false, true)} to ${fmtDate(r.to, false, true)}. ${added} new day${added === 1 ? '' : 's'} will be added${kept ? `; ${kept} you already logged stay as they are` : ''}${r.skipped ? `. ${r.skipped} entr${r.skipped === 1 ? 'y' : 'ies'} could not be used and ${r.skipped === 1 ? 'was' : 'were'} skipped` : ''}. Only period days are imported, not symptoms or moods.`,
+      message: `Found ${r.periods} period${r.periods === 1 ? '' : 's'}${r.logged ? ` and ${r.logged} day${r.logged === 1 ? '' : 's'} with symptoms or moods` : ''}, from ${fmtDate(r.from, false, true)} to ${fmtDate(r.to, false, true)}. ${added} day${added === 1 ? '' : 's'} will be added or filled in${kept ? `; ${kept} already match your log` : ''}${r.skipped ? `. ${r.skipped} entr${r.skipped === 1 ? 'y' : 'ies'} could not be used and ${r.skipped === 1 ? 'was' : 'were'} skipped` : ''}. Flow you logged yourself stays as it is. Sleep, sport, weight and notes are not imported.`,
       confirmText: 'Import',
-      onConfirm: () => importDays(r.days).then(x => toast(`Imported ${x.added} period day${x.added === 1 ? '' : 's'}`), e => toast(e.message)),
+      onConfirm: () => importDays(r.days).then(x => toast(`Imported ${x.added} day${x.added === 1 ? '' : 's'}`), e => toast(e.message)),
     })
   }
   input.click()
