@@ -21,6 +21,9 @@ import { isOn } from '../lib/modules.js'
 const openSheet = render => useUI.getState().openSheet(render)
 const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return null } })()
 
+// Months from the first logged day to today, so an imported history can be paged back to.
+const monthsBack = (days, today) => { const f = Object.keys(days).sort()[0]; return f ? (+today.slice(0, 4) - +f.slice(0, 4)) * 12 + (+today.slice(5, 7) - +f.slice(5, 7)) : 0 }
+
 export default function Cycle() {
   const nav = useNavigate()
   const c = useCycle()
@@ -237,6 +240,7 @@ function Body({ c }) {
     <CycleCalendar today={today} weekStart={weekStartOf(S)} viewer="own" legend={['period', 'period-est', 'period-range', 'ovulation', 'ovulation-est', 'ovulation-range', 'fertile-est']}
       kind={d => kindOn(days, d, fcView, ps, st)} info={d => ownDayInfo(days, d, today)}
       logged={d => days[d] && (days[d].sym?.length || days[d].mood?.length || days[d].note)}
+      back={Math.max(24, monthsBack(raw, today))}
       onLog={d => openSheet(() => <DaySheet date={d} />)}
       onEnd={d => saveDay(d, { ...raw[d], end: raw[d]?.end ? 0 : 1 }).catch(e => useUI.getState().toast(e.message))} />
 
