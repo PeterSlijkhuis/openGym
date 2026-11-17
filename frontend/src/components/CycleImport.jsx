@@ -13,8 +13,14 @@ const toast = m => useUI.getState().toast(m)
 export function importFromFlo(have) {
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = '.json,application/json'
+  // No `accept`: Android greys out a .json that arrives as application/octet-stream (mail, Drive),
+  // and parseFlo already explains a wrong file. Kept in the page while the picker is open, since a
+  // detached input can lose its change event on mobile browsers.
+  input.hidden = true
+  document.body.append(input)
+  input.oncancel = () => input.remove()
   input.onchange = async () => {
+    input.remove()
     const file = input.files?.[0]
     if (!file) return
     if (file.size > 20e6) return toast('That file is too large to be a Flo export.')
